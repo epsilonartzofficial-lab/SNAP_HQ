@@ -2,7 +2,7 @@
 
 This is a practice repository for learning how to open a pull request on GitHub.
 
-It contains a simple exapmle of a project README, and it's meant to be improved
+It contains a simple example of a project README, and it's meant to be improved
 one small pull request at a time.
 
 ## Goals
