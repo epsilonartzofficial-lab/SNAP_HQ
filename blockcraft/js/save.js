@@ -39,7 +39,13 @@
         idx.migratedV1 = idx.worlds.length > 0;
         return idx;
       }
-      const idx = r.value || freshIndex();
+      let idx = r.value;
+      if (!idx) {
+        // No index yet (first run) or it was never written: rebuild it from any world records present.
+        idx = freshIndex(); rebuildIndex(idx);
+        if (idx.worlds.length) { idx.migratedV1 = true; idx.recovered = true; }
+      }
+      idx.worlds = idx.worlds.filter(e => e && typeof e === 'object' && typeof e.id === 'string');
       idx.settings = Object.assign({}, DEFAULT_SETTINGS, idx.settings || {});
       return idx;
     }
@@ -89,11 +95,32 @@
       w.cheats = !!w.cheats;
       w.dayTime = num(w.dayTime, 0.08) % 1;
       w.edits = w.edits && typeof w.edits === 'object' ? w.edits : {};
+      const nb = BC.blocks.NB, vol = BC.C.CS * BC.C.CS * BC.C.WH;
+      for (const [k, arr] of Object.entries(w.edits)) {
+        if (!Array.isArray(arr) || !/^-?\d+,-?\d+$/.test(k)) { delete w.edits[k]; continue; }
+        const clean = [];
+        for (let i = 0; i + 1 < arr.length; i += 2) {
+          const idx = arr[i], id = arr[i + 1];
+          if (Number.isInteger(id) && id >= nb) throw new Error('This world contains blocks from a newer version of Blockcraft');
+          if (Number.isInteger(idx) && idx >= 0 && idx < vol && Number.isInteger(id) && id >= 0) clean.push(idx, id);
+        }
+        w.edits[k] = clean;
+      }
+      const okPos = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
+      if (!okPos(w.spawn)) w.spawn = null;
       w.entities = Array.isArray(w.entities) ? w.entities.filter(e => Array.isArray(e) && BC.items.get(e[0]) && e[1] > 0) : [];
       if (w.player) {
         const p = w.player;
         p.inventory = INV.pack(INV.unpack(p.inventory, 36));
-        p.stats = Object.assign(BC.survival.newStats(), p.stats || {});
+        if (!['x', 'y', 'z'].every(k => typeof p[k] === 'number' && isFinite(p[k]))) { p.x = p.y = p.z = null; }
+        p.yaw = num(p.yaw, 0); p.pitch = num(p.pitch, 0); p.fallDist = Math.max(0, num(p.fallDist, 0));
+        const st = p.stats = Object.assign(BC.survival.newStats(), p.stats && typeof p.stats === 'object' ? p.stats : {});
+        const fresh = BC.survival.newStats();
+        for (const k of Object.keys(fresh)) st[k] = num(st[k], fresh[k]);
+        st.health = Math.max(0, Math.min(20, st.health)); st.food = Math.max(0, Math.min(20, Math.round(st.food)));
+        st.saturation = Math.max(0, Math.min(st.food, st.saturation)); st.air = Math.max(-20, Math.min(BC.survival.MAX_AIR, st.air));
+        p.dead = !!p.dead || st.health <= 0;
+        if (p.dead && !p.deathMsg) p.deathMsg = 'You died.';
         p.sel = Math.max(0, Math.min(8, p.sel | 0));
       }
       return w;
@@ -150,7 +177,8 @@
       const wr = write(KEY_WORLD(w.id), w);
       if (!wr.ok) return { ok: false, error: wr.error };
       idx.worlds.push(summary(w));
-      writeIndex(idx);
+      const ir = writeIndex(idx);
+      if (!ir.ok) return { ok: false, error: ir.error };
       return { ok: true, world: w };
     }
 

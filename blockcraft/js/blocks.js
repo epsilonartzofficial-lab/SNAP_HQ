@@ -24,7 +24,7 @@
     { key: 'iron_ore', name: 'Iron Ore', tex: 'iron', hardness: 3, tool: 'pickaxe', tier: 2, drop: 'raw_iron' },
     { key: 'gold_ore', name: 'Gold Ore', tex: 'gold', hardness: 3, tool: 'pickaxe', tier: 3, drop: 'raw_gold' },
     { key: 'diamond_ore', name: 'Diamond Ore', tex: 'diamond', hardness: 3, tool: 'pickaxe', tier: 3, drop: 'diamond' },
-    { key: 'cactus', name: 'Cactus', tex: { top: 'cactus_top', side: 'cactus_side', bottom: 'cactus_top' }, hardness: 0.4, swordFast: true, hurts: 1 },
+    { key: 'cactus', name: 'Cactus', tex: { top: 'cactus_top', side: 'cactus_side', bottom: 'cactus_top' }, hardness: 0.4, hurts: 1 },
     { key: 'stone_bricks', name: 'Stone Bricks', tex: 'stone_bricks', hardness: 1.5, tool: 'pickaxe', tier: 1 },
     { key: 'crafting_table', name: 'Crafting Table', tex: { top: 'table_top', side: 'table_side', bottom: 'planks', front: 'table_front' }, hardness: 2.5, tool: 'axe', use: 'crafting' },
   ];

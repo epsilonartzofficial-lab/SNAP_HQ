@@ -10,6 +10,7 @@
 
   const R = BC.render = {};
   let renderer, scene, camera, hudScene, hudCam;
+  let litMats = [];
   let opaqueMat, waterMat, atlasTex, itemTex, partMat, entBlockMat, entItemMat, heldBlockMat, heldItemMat, handMat;
 
   // ---------------------------------------------------------------- setup
@@ -38,6 +39,7 @@
     heldItemMat = new THREE.MeshBasicMaterial({ map: itemTex, alphaTest: 0.5, side: THREE.DoubleSide });
     handMat = new THREE.MeshBasicMaterial({ vertexColors: true });
 
+    litMats = [entBlockMat, entItemMat, heldBlockMat, heldItemMat, handMat];
     buildSky();
     buildHighlight();
     buildHeld();
@@ -233,6 +235,7 @@
     const p = new THREE.Points(g, partMat); scene.add(p);
     particles.push({ p, vel, life: 0.8 });
   };
+  R.clearParticles = function () { for (const Pp of particles) { scene.remove(Pp.p); Pp.p.geometry.dispose(); } particles.length = 0; };
   R.updateParticles = function (dt) {
     for (let i = particles.length - 1; i >= 0; i--) {
       const Pp = particles[i]; Pp.life -= dt;
@@ -306,7 +309,7 @@
     } else {
       scene.background.copy(sky); scene.fog.color.copy(sky); scene.fog.far = rd * CS; scene.fog.near = rd * CS * 0.55;
     }
-    for (const m of [opaqueMat, waterMat, partMat, entBlockMat, entItemMat, heldBlockMat, heldItemMat, handMat]) m.color.setScalar(Math.max(light, 0.35));
+    for (const m of litMats) m.color.setScalar(Math.max(light, 0.35));
     opaqueMat.color.setScalar(light); waterMat.color.setScalar(light); partMat.color.setScalar(light);
     sunDir.set(Math.cos(a), sy, 0.28).normalize();
     sun.position.copy(eye).addScaledVector(sunDir, 320); sun.lookAt(eye);

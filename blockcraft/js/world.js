@@ -13,7 +13,12 @@
     const edits = new Map();
     for (const [k, arr] of Object.entries(record.edits || {})) {
       if (!Array.isArray(arr)) continue;
-      const m = new Map(); for (let i = 0; i + 1 < arr.length; i += 2) m.set(arr[i] | 0, arr[i + 1] | 0); edits.set(k, m);
+      const m = new Map();
+      for (let i = 0; i + 1 < arr.length; i += 2) {
+        const idx = arr[i], id = arr[i + 1];
+        if (Number.isInteger(idx) && idx >= 0 && idx < CS * CS * WH && Number.isInteger(id) && id >= 0 && id < BC.blocks.NB) m.set(idx, id);
+      }
+      edits.set(k, m);
     }
     let offsets = [], rd = 0;
 

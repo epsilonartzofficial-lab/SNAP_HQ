@@ -353,10 +353,10 @@ suite('blocks', () => {
     assert.equal(bi('dirt', null, { airborne: true }).ticks, 75);
   });
 
-  test('breakInfo: swords are faster on leaves and cactus only', () => {
+  test('breakInfo: swords are faster on leaves only (cactus unverified, so not sped up)', () => {
     const sword = { type: 'sword', tier: 1, speed: 2 };
     assert.equal(bi('oak_leaves', sword).ticks, Math.ceil(1 / (1.5 / 0.2 / 30)));
-    assert.equal(bi('cactus', sword).ticks, Math.ceil(1 / (1.5 / 0.4 / 30)));
+    assert.equal(bi('cactus', sword).ticks, Math.ceil(1 / (1 / 0.4 / 30)));
     assert.equal(bi('dirt', sword).ticks, 15);
   });
 

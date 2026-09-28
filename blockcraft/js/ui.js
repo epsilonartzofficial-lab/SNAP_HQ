@@ -9,7 +9,7 @@
   let G = null;
 
   const SCREENS = ['title', 'worlds', 'create', 'transfer', 'loading', 'pause', 'settings', 'death', 'inventory'];
-  U.show = function (name) { for (const s of SCREENS) $('scr-' + s).hidden = s !== name; if (name !== 'inventory') { hideTooltip(); $('cursor-stack').hidden = true; } };
+  U.show = function (name) { for (const s of SCREENS) $('scr-' + s).hidden = s !== name; hover = null; if (name !== 'inventory') { hideTooltip(); $('cursor-stack').hidden = true; } };
 
   // UI surfaces are painted with the game's own generated textures.
   const texCSS = document.createElement('style');
@@ -142,9 +142,9 @@
   $('btn-import-world').addEventListener('click', () => U.showTransfer('import'));
 
   // ---------------------------------------------------------------- export / import
-  let transferMode = 'export';
-  U.showTransfer = function (mode, text, name) {
-    transferMode = mode;
+  let transferMode = 'export', transferBack = 'worlds';
+  U.showTransfer = function (mode, text, name, back) {
+    transferMode = mode; transferBack = back || 'worlds';
     $('transfer-h').textContent = mode === 'export' ? 'Export world' : 'Import world';
     $('transfer-help').textContent = mode === 'export'
       ? 'This text is a full copy of the world. Keep it somewhere safe as a backup, or import it in another browser.'
@@ -177,7 +177,7 @@
     rd.onerror = () => { $('transfer-status').textContent = 'That file could not be read.'; };
     rd.readAsText(f);
   });
-  $('btn-transfer-back').addEventListener('click', () => G.setScreen('worlds'));
+  $('btn-transfer-back').addEventListener('click', () => G.transferBack(transferBack));
 
   // ---------------------------------------------------------------- create world
   const modeHelp = {
@@ -228,10 +228,12 @@
   $('btn-pause-settings').addEventListener('click', () => G.openSettings());
   $('btn-switch-mode').addEventListener('click', () => G.switchMode());
   $('btn-quit').addEventListener('click', () => G.quitToTitle());
+  $('btn-pause-export').addEventListener('click', () => G.exportCurrent());
   $('btn-respawn').addEventListener('click', () => G.respawn());
   $('btn-death-title').addEventListener('click', () => G.quitToTitle());
   U.setPause = function (info) {
     $('pause-meta').textContent = info.meta;
+    $('btn-quit').textContent = info.quitArmed ? 'Quit without saving?' : 'Save and quit to title';
     const b = $('btn-switch-mode'); b.hidden = !info.cheats; b.textContent = info.mode === 'creative' ? 'Switch to Survival' : 'Switch to Creative';
   };
   U.setDeath = msg => { $('death-msg').textContent = msg; };
@@ -240,7 +242,7 @@
   let invKind = 'player';
   const refs = { main: [], hot: [], craft: [], result: null, palette: [] };
   U.openInventory = function (kind) {
-    invKind = kind;
+    invKind = kind; hover = null;
     const creativePalette = kind === 'player' && G.state.mode === 'creative';
     $('inv-title').textContent = kind === 'table' ? 'Crafting Table' : creativePalette ? 'Creative inventory' : 'Inventory';
     const top = $('inv-top'); top.textContent = '';
@@ -284,7 +286,7 @@
   let recipeKey = '';
   function renderRecipes() {
     const st = G.state, n = st.craft.n;
-    const have = id => INV.count(st.inv, id) + INV.count(st.craft.slots, id);
+    const have = id => INV.count(st.inv, id) + INV.count(st.craft.slots, id) + (st.cursor && st.cursor.id === id ? st.cursor.count : 0);
     const list = CR.RECIPES.filter(r => CR.fits(r, n)).map(r => ({ r, miss: CR.missing(r, have) }));
     list.sort((a, b) => (a.miss.length === 0 ? 0 : 1) - (b.miss.length === 0 ? 0 : 1));
     const key = n + '|' + list.map(x => CR.RECIPES.indexOf(x.r) + ':' + x.miss.map(m => m.id + 'x' + m.need).join(',')).join(';');
@@ -312,7 +314,7 @@
     const el = slotFrom(e.target);
     const inWindow = e.target.closest('.inv-window, .inv-side');
     if (!el) {
-      if (!inWindow && G.state.cursor) { e.preventDefault(); G.dropCursor(e.button === 2 ? 'one' : 'all'); }
+      if (!inWindow && G.state.cursor && (e.button === 0 || e.button === 2)) { e.preventDefault(); G.dropCursor(e.button === 2 ? 'one' : 'all'); }
       return;
     }
     e.preventDefault();

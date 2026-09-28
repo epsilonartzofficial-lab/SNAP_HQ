@@ -24,7 +24,7 @@
   const state = { mode: 'survival', inv: INV.empty(36), sel: 0, cursor: null, craft: { n: 2, slots: INV.empty(9) }, stats: S.newStats(), eating: 0 };
   const player = {
     p: new THREE.Vector3(), v: new THREE.Vector3(), yaw: 0, pitch: 0, onGround: false, fly: false, sneaking: false, sprinting: false,
-    inWater: false, eyeInWater: false, fallDist: 0, dead: false, deathMsg: '', height: STAND_H,
+    inWater: false, eyeInWater: false, fallDist: 0, dead: false, deathMsg: '', height: STAND_H, protect: 0,
   };
   let W = null, E = null, rec = null;          // rec === null means the title-screen backdrop world
   let screen = 'title', settingsReturn = 'title';
@@ -73,13 +73,13 @@
     });
   }
   document.addEventListener('pointerlockchange', () => {
-    if (locked()) { everLocked = true; lockFail = null; lockedAt = performance.now(); if (screen !== 'play' && rec && !player.dead) setScreen('play'); }
+    if (locked()) { everLocked = true; lockFail = null; lockedAt = performance.now(); if (screen === 'pause' && rec && !player.dead) setScreen('play'); }
     else if (screen === 'play' && control === 'lock') pause();
   });
   document.addEventListener('pointerlockerror', () => { if (lockFail) { const f = lockFail; lockFail = null; f(); } });
 
   function pauseInfo() {
-    return { cheats: rec && rec.cheats, mode: state.mode, meta: rec ? `${rec.name} · ${state.mode === 'creative' ? 'Creative' : 'Survival'} · ${S.DIFFICULTY[rec.difficulty]} · seed ${rec.seed}` : '' };
+    return { cheats: rec && rec.cheats, mode: state.mode, quitArmed, meta: rec ? `${rec.name} · ${state.mode === 'creative' ? 'Creative' : 'Survival'} · ${S.DIFFICULTY[rec.difficulty]} · seed ${rec.seed}` : '' };
   }
   function pause() {
     if (screen !== 'play') return;
@@ -126,24 +126,32 @@
     rec.dayTime = dayTime; rec.mode = state.mode; rec.edits = W.packEdits();
     rec.player = {
       x: p.x, y: p.y, z: p.z, yaw: player.yaw, pitch: player.pitch, fly: player.fly, sel: state.sel,
-      inventory: INV.pack(inv), stats: Object.assign({}, state.stats), dead: player.dead, deathMsg: player.deathMsg,
+      inventory: INV.pack(inv), stats: Object.assign({}, state.stats), dead: player.dead, deathMsg: player.deathMsg, fallDist: +player.fallDist.toFixed(2),
     };
     rec.entities = E.pack().concat(extra);
     return rec;
   }
+  let lastSaveFailed = false, quitArmed = false;
   function saveNow() {
     const r = snapshot(); if (!r) return true;
     const res = store.saveWorld(r);
-    if (!res.ok) { saveFailed(res); return false; }
+    if (!res.ok) { lastSaveFailed = true; saveFailed(res); return false; }
+    lastSaveFailed = false; quitArmed = false;
     lastSaveAt = Date.now();
     return true;
   }
+  // Export straight from the live game, so a world can be rescued even when browser storage is full.
+  G.exportCurrent = function () {
+    const r = snapshot(); if (!r) return;
+    U.showTransfer('export', JSON.stringify(r), r.name, 'pause');
+  };
+  G.transferBack = function (to) { setScreen(to); if (to === 'pause') U.setPause(pauseInfo()); };
   G.saveNow = saveNow;
   window.addEventListener('pagehide', saveNow);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
   // ---------------------------------------------------------------- world lifecycle
-  function disposeWorld() { if (E) E.clear(); if (W) W.dispose(); W = null; E = null; }
+  function disposeWorld() { if (E) E.clear(); if (W) W.dispose(); R.clearParticles(); W = null; E = null; }
   G.listWorlds = () => store.listWorlds();
   G.createWorld = function (opts) {
     const r = store.newWorld(opts);
@@ -189,7 +197,7 @@
     }
     const p = w.player;
     if (p) {
-      player.p.set(p.x, p.y, p.z); player.yaw = p.yaw || 0; player.pitch = p.pitch || 0;
+      if (p.x == null) player.p.set(w.spawn[0], w.spawn[1], w.spawn[2]); else player.p.set(p.x, p.y, p.z); player.yaw = p.yaw || 0; player.pitch = p.pitch || 0;
       player.fly = !!p.fly && state.mode === 'creative';
       state.inv = INV.unpack(p.inventory, 36); state.sel = p.sel | 0;
       state.stats = Object.assign(S.newStats(), p.stats);
@@ -199,7 +207,8 @@
       state.inv = INV.empty(36); state.sel = 0; state.stats = S.newStats(); player.dead = false; player.deathMsg = '';
       if (state.mode === 'creative') CREATIVE_START.forEach((k, i) => { state.inv[i] = IT.make(k, 64); });
     }
-    player.v.set(0, 0, 0); player.fallDist = 0; player.sneaking = false; player.sprinting = false;
+    player.v.set(0, 0, 0); player.sneaking = false; player.sprinting = false; player.protect = 3;
+    player.fallDist = p && typeof p.fallDist === 'number' ? p.fallDist : 0;
     W.prime(player.p.x, player.p.z);
     if (collides(player.p.x, player.p.y, player.p.z, STAND_H)) player.p.y = W.surfaceY(Math.floor(player.p.x), Math.floor(player.p.z));
     U.resetHud(); U.invalidateRecipes();
@@ -215,7 +224,14 @@
   }
   G.quitToTitle = function () {
     if (screen === 'inventory') closeInventory(true);
-    saveNow();
+    if (!saveNow() && !quitArmed) {
+      // Saving failed: don't throw away unsaved progress without a second, deliberate click.
+      quitArmed = true;
+      U.error('Saving failed, so quitting now loses everything since the last successful save. Use Export world to keep a copy, or press the quit button again to leave anyway.');
+      if (screen === 'pause') U.setPause(pauseInfo());
+      return;
+    }
+    quitArmed = false;
     orbitCenter.copy(player.p);
     if (E) E.clear(); E = null; rec = null;
     releaseInputs();
@@ -237,7 +253,8 @@
   function hurt(amount, cause) {
     if (player.dead || !rec) return;
     if (state.mode === 'creative' && cause !== 'void') return;
-    const dealt = S.applyDamage(state.stats, amount);
+    if (player.protect > 0 && cause !== 'void') return;   // 3 s of protection after joining or respawning
+    const dealt = S.applyDamage(state.stats, amount, S.DAMAGE_EXHAUSTION[cause] != null ? S.DAMAGE_EXHAUSTION[cause] : S.EXHAUST.damage);
     if (dealt <= 0) return;
     hurtTilt = 0.35;
     const f = $('hurt-flash'); f.classList.add('on'); setTimeout(() => f.classList.remove('on'), 60);
@@ -258,11 +275,11 @@
   }
   G.respawn = function () {
     if (!rec) return;
-    const [sx, sy, sz] = rec.spawn;
+    const [sx, , sz] = rec.spawn;
     W.prime(sx, sz);
-    let y = sy;
-    if (collides(sx, y, sz, STAND_H)) y = W.surfaceY(Math.floor(sx), Math.floor(sz));
-    player.p.set(sx, y, sz); player.v.set(0, 0, 0); player.fallDist = 0; player.fly = false;
+    // Respawn on the current top block of the spawn column, so digging or building there can't trap you.
+    const y = W.surfaceY(Math.floor(sx), Math.floor(sz));
+    player.p.set(sx, y, sz); player.v.set(0, 0, 0); player.fallDist = 0; player.fly = false; player.protect = 3;
     state.stats = S.newStats(); player.dead = false; player.deathMsg = '';
     U.resetHud();
     saveNow();
@@ -376,7 +393,8 @@
     if (player.inWater && inp.jump && wall) v.y = 5.2;
     if (player.fly && player.onGround && !inp.jump) player.fly = false;
 
-    // fall damage
+    // fall damage (landing in water cancels it, checked after the move)
+    if (LIQUID[W.getBlock(Math.floor(p.x), Math.floor(p.y + 0.1), Math.floor(p.z))]) player.inWater = true;
     if (player.inWater || player.fly) player.fallDist = 0;
     else if (p.y < y0 && !player.onGround) player.fallDist += y0 - p.y;
     if (player.onGround) {
@@ -386,7 +404,7 @@
     // hunger cost of movement
     if (!creative) {
       const moved = Math.hypot(p.x - x0, p.z - z0);
-      if (player.sprinting) S.addExhaustion(state.stats, S.EXHAUST.sprintPerBlock * moved);
+      if (player.sprinting && player.onGround) S.addExhaustion(state.stats, S.EXHAUST.sprintPerBlock * moved);
       else if (player.inWater) S.addExhaustion(state.stats, S.EXHAUST.swimPerBlock * moved);
       if (jumped) S.addExhaustion(state.stats, player.sprinting ? S.EXHAUST.sprintJump : S.EXHAUST.jump);
     }
@@ -510,22 +528,25 @@
         if (breakCooldown <= 0 && !(d && d.tool && d.tool.type === 'sword')) { breakBlock(h); breakCooldown = 0.25; swing(); }
         mining = null;
       } else {
-        const k = h.x + ',' + h.y + ',' + h.z;
+        // progress restarts when the target or the held item changes, as in the reference game
+        const k = h.x + ',' + h.y + ',' + h.z + ':' + state.sel + ':' + (s ? s.id : 0);
         if (!mining || mining.k !== k) mining = { k, progress: 0 };
         if (breakCooldown <= 0) {
           const info = breakInfo(h.id, IT.toolOf(s), env());
-          if (info.ticks !== Infinity) mining.progress += info.ticks === 0 ? 1 : dt / info.seconds;
+          if (info.ticks === Infinity) mining.unbreakable = true;
+          else mining.progress += info.ticks === 0 ? 1 : dt / info.seconds;
           if (swingT < 0) swing();
           if (mining.progress >= 1) { breakBlock(h); mining = null; breakCooldown = 0.25; }
         }
       }
     } else mining = null;
     attackFresh = false;
-    R.setCrack(mining ? h : null, mining ? Math.floor(mining.progress * 10) : -1);
+    const stage = mining && !mining.unbreakable ? Math.min(9, Math.floor(mining.progress * 10) - 1) : -1;   // nothing shown below 10 %
+    R.setCrack(stage >= 0 ? h : null, stage);
 
     // use: crafting table, eat, place
     if (useHeld) {
-      const usable = h && DEFS[h.id].use && !player.sneaking;
+      const usable = h && DEFS[h.id].use && !(player.sneaking && s);   // sneaking with an item in hand places instead
       if (useFresh && usable) { useFresh = false; useHeld = false; if (DEFS[h.id].use === 'crafting') openInventory('table'); return; }
       if (d && d.food && S.canEat(state.stats, d.food, creative) && !usable) {
         state.eating += dt / 1.6;
@@ -536,7 +557,7 @@
         }
       } else {
         state.eating = 0;
-        if (useCooldown <= 0 && h && d && d.kind === 'block') { if (place(h)) useCooldown = 0.2; else if (useFresh) useCooldown = 0.2; }
+        if ((useCooldown <= 0 || useFresh) && h && d && d.kind === 'block') { if (place(h)) useCooldown = 0.2; }
       }
       useFresh = false;
     } else state.eating = 0;
@@ -546,7 +567,10 @@
   function openInventory(kind) {
     if (screen !== 'play' || player.dead) return;
     releaseInputs();
+    const leftovers = [state.cursor].concat(state.craft.slots).filter(Boolean);
+    state.cursor = null;
     state.craft = { n: kind === 'table' ? 3 : 2, slots: INV.empty(9) };
+    returnToInventory(leftovers);
     setScreen('inventory');
     U.openInventory(kind);
   }
@@ -585,7 +609,8 @@
       if (action === 'shift') INV.quickMove(state.craft.slots, i, [[state.inv, MAIN], [state.inv, HOT]]);
       else if (action !== 'middle') state.cursor = INV.click(state.craft.slots, i, btn, state.cursor);
     } else if (c === 'result') {
-      if (action === 'shift') {
+      if (action === 'middle') { /* no-op */ }
+      else if (action === 'shift') {
         for (let k = 0; k < 64; k++) {
           const r = G.craftResult(); if (!r) break;
           const test = state.inv.map(INV.clone);
@@ -669,9 +694,10 @@
   const GAME_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F1', 'F3', 'Tab'];
   window.addEventListener('keydown', e => {
     const tag = e.target && e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if ((tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') && e.code !== 'Escape') return;
     if (screen === 'play' && GAME_KEYS.includes(e.code)) e.preventDefault();
     if (screen === 'inventory') {
+      if (e.repeat) return;
       if (e.code === 'KeyE') { closeInventory(false); return; }
       if (e.code === 'Escape') { closeInventory(true); setScreen('pause'); U.setPause(pauseInfo()); saveNow(); return; }
       const h = U.hoveredSlot();
@@ -707,7 +733,7 @@
   }
 
   const cv = $('view');
-  let drag = null;
+  let drag = null, tapToken = 0;
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('mousedown', e => {
     if (screen !== 'play' || control === 'touch' || player.dead) return;
@@ -717,12 +743,17 @@
     if (e.button === 2) { useHeld = true; useFresh = true; return; }
     if (e.button !== 0) return;
     if (control === 'lock') { attackHeld = true; attackFresh = true; }
-    else drag = { moved: 0, t: performance.now() };   // drag mode: hold still to mine, drag to look
+    else { tapToken++; drag = { moved: 0, t: performance.now() }; }   // drag mode: hold still to mine, drag to look
   });
   window.addEventListener('mouseup', e => {
     if (e.button === 0) {
-      if (drag && !attackHeld && drag.moved < 6 && screen === 'play') { attackHeld = true; attackFresh = true; setTimeout(() => { if (!drag) attackHeld = false; }, 60); }
-      drag = null; attackHeld = false;
+      const tap = drag && !attackHeld && drag.moved < 6 && screen === 'play';
+      drag = null;
+      if (tap) {
+        // a quick click in drag mode is one attack press, released a few frames later
+        attackHeld = true; attackFresh = true;
+        const token = ++tapToken; setTimeout(() => { if (token === tapToken && !drag) attackHeld = false; }, 80);
+      } else attackHeld = false;
     }
     if (e.button === 2) useHeld = false;
   });
@@ -738,7 +769,7 @@
   });
   // drag mode: a still press held for 200 ms starts mining
   setInterval(() => { if (drag && drag.moved < 6 && performance.now() - drag.t > 200 && screen === 'play') attackHeld = true; }, 50);
-  window.addEventListener('wheel', e => { if (screen === 'play') { e.preventDefault(); G.selectSlot(state.sel + (e.deltaY > 0 ? 1 : -1)); } }, { passive: false });
+  window.addEventListener('wheel', e => { if (screen === 'play') { e.preventDefault(); if (e.deltaY) G.selectSlot(state.sel + (e.deltaY > 0 ? 1 : -1)); } }, { passive: false });
 
   // touch
   const joyEl = $('joy'), knob = $('knob');
@@ -780,6 +811,8 @@
   $('menu-btn').addEventListener('click', () => pause());
 
   // ---------------------------------------------------------------- frame loop
+  const PHYS_DT = 1 / 60;
+  let physAcc = 0;
   let last = performance.now(), acc = 0, frames = 0, fpsT = 0, fps = 0, unloadT = 0, saveT = 0, orbit = 0;
   let equipT = 1, heldKey = null;
   const reduceMotionOS = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -787,7 +820,7 @@
 
   function update(dt) {
     const center = rec ? player.p : orbitCenter;
-    W.stream(center.x, center.z, screen === 'play' ? 6 : 12);
+    try { W.stream(center.x, center.z, screen === 'play' ? 6 : 12); } catch (e) { reportError(e); }
     const cam = R.camera;
     if (!rec) {
       if (!reduceMotion()) orbit += dt * 0.05;
@@ -795,6 +828,7 @@
       cam.lookAt(orbitCenter.x, orbitCenter.y + 2, orbitCenter.z);
       cam.rotation.z = 0;
       R.setHighlight(null); R.setCrack(null, -1);
+      R.updateParticles(dt);
       dayTime = (dayTime + dt / DAY_LEN * 0.3) % 1;
       R.updateSky(dayTime, dt, false, W.rd);
       R.render(false);
@@ -805,11 +839,15 @@
       acc += dt; let n = 0;
       while (acc >= TICK && n < 10) { gameTick(); acc -= TICK; n++; }
       if (n >= 10) acc = 0;
-      if (!player.dead) step(dt, screen === 'play');
+      // Fixed 1/60 s physics steps keep fall damage and collisions independent of frame rate.
+      physAcc += dt; let k = 0;
+      while (physAcc >= PHYS_DT && k < 8) { if (!player.dead) step(PHYS_DT, screen === 'play'); physAcc -= PHYS_DT; k++; }
+      if (k >= 8) physAcc = 0;
       if (screen === 'play' && !player.dead) interact(dt);
       else { mining = null; R.setCrack(null, -1); R.setHighlight(null); }
       E.update(dt, { x: player.p.x, y: player.p.y, z: player.p.z, alive: !player.dead }, pickup);
       dayTime = (dayTime + dt / DAY_LEN) % 1;
+      if (player.protect > 0) player.protect -= dt;
       if (swingT >= 0) { swingT += dt / 0.3; if (swingT >= 1) swingT = -1; }
       hurtTilt = Math.max(0, hurtTilt - dt);
     }
@@ -824,6 +862,8 @@
     const targetFov = settings.fov * (player.sprinting && !reduceMotion() ? 1.12 : 1);
     if (Math.abs(cam.fov - targetFov) > 0.05) { cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 8); cam.updateProjectionMatrix(); }
     R.updateSky(dayTime, paused ? 0 : dt, player.eyeInWater, W.rd);
+    R.updateParticles(paused ? 0 : dt);
+    $('t-fly').classList.toggle('on', player.fly);
     $('water-tint').hidden = !player.eyeInWater;
     // held item
     const hs = held(), hk = hs ? String(hs.id) : 'hand';

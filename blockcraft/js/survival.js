@@ -42,7 +42,7 @@
 
   // Damage with the reference game's invulnerability window: for 10 ticks after a hit only damage
   // above the previous hit applies (and only the difference). Returns the damage actually applied.
-  function applyDamage(s, amount) {
+  function applyDamage(s, amount, exhaustion) {
     if (amount <= 0 || s.health <= 0) return 0;
     let dealt;
     if (s.invuln > 10) {
@@ -52,7 +52,7 @@
       dealt = amount; s.lastHurt = amount; s.invuln = 20; s.hurtTime = 10;
     }
     s.health = Math.max(0, s.health - dealt);
-    addExhaustion(s, EXHAUST.damage);
+    addExhaustion(s, exhaustion == null ? EXHAUST.damage : exhaustion);
     return dealt;
   }
   function tickTimers(s) { if (s.invuln > 0) s.invuln--; if (s.hurtTime > 0) s.hurtTime--; }
@@ -73,10 +73,13 @@
   }
   const canSprint = (s, creative) => creative || s.food > 6;
 
+  // Hunger cost of taking damage, per cause. The reference game charges 0.1 for most sources and nothing
+  // for falling, drowning, starving or the void.
+  const DAMAGE_EXHAUSTION = { fall: 0, drown: 0, starve: 0, void: 0, cactus: 0.1 };
   const DEATH_MESSAGES = {
     fall: 'hit the ground too hard', drown: 'drowned', starve: 'starved to death', cactus: 'was pricked to death',
     void: 'fell out of the world', generic: 'died',
   };
 
-  BC.survival = { DIFFICULTY, MAX_AIR, EXHAUST, DEATH_MESSAGES, newStats, addExhaustion, foodTick, heal, applyDamage, tickTimers, airTick, fallDamage, canEat, eat, canSprint };
+  BC.survival = { DIFFICULTY, MAX_AIR, EXHAUST, DAMAGE_EXHAUSTION, DEATH_MESSAGES, newStats, addExhaustion, foodTick, heal, applyDamage, tickTimers, airTick, fallDamage, canEat, eat, canSprint };
 })(typeof window !== 'undefined' ? window : globalThis);

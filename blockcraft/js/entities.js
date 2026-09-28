@@ -6,7 +6,7 @@
   const IT = BC.items;
   const INV = BC.inv;
   const DESPAWN = 300;      // seconds, as in the reference game (6000 ticks)
-  const CAP = 600;
+  const CAP = 2000;   // safety limit; the oldest stack is removed beyond it (the reference game has no cap)
 
   function create(world, render) {
     const list = [];
@@ -46,12 +46,17 @@
       if (solidAt(e.x, e.y + 0.05, e.z)) { e.y = Math.floor(e.y + 0.05) + 1; e.vy = 0; }   // pushed out when a block is placed on it
       if (inWater) { e.vy += (4 - e.vy) * Math.min(1, dt * 2) * 0.5; e.vx *= Math.exp(-3 * dt); e.vz *= Math.exp(-3 * dt); }
       else e.vy = Math.max(e.vy - 16 * dt, -40);
-      const ny = e.y + e.vy * dt;
-      if (e.vy < 0 && solidAt(e.x, ny, e.z)) { e.y = Math.floor(ny) + 1; e.vy = 0; e.onGround = true; }
-      else if (e.vy > 0 && solidAt(e.x, ny + 0.25, e.z)) { e.vy = 0; }
-      else { e.y = ny; e.onGround = false; }
-      const nx = e.x + e.vx * dt; if (solidAt(nx, e.y + 0.1, e.z)) e.vx = 0; else e.x = nx;
-      const nz = e.z + e.vz * dt; if (solidAt(e.x, e.y + 0.1, nz)) e.vz = 0; else e.z = nz;
+      // substep so fast items never skip through a one-block floor or wall
+      const n = Math.max(1, Math.ceil(Math.max(Math.abs(e.vx), Math.abs(e.vy), Math.abs(e.vz)) * dt / 0.4));
+      const h = dt / n;
+      for (let i = 0; i < n; i++) {
+        const ny = e.y + e.vy * h;
+        if (e.vy < 0 && solidAt(e.x, ny, e.z)) { e.y = Math.floor(ny) + 1; e.vy = 0; e.onGround = true; }
+        else if (e.vy > 0 && solidAt(e.x, ny + 0.25, e.z)) { e.vy = 0; }
+        else { e.y = ny; if (e.vy !== 0) e.onGround = false; }
+        const nx = e.x + e.vx * h; if (solidAt(nx, e.y + 0.1, e.z)) e.vx = 0; else e.x = nx;
+        const nz = e.z + e.vz * h; if (solidAt(e.x, e.y + 0.1, nz)) e.vz = 0; else e.z = nz;
+      }
       const damp = Math.exp((e.onGround ? -10 : -0.4) * dt); e.vx *= damp; e.vz *= damp;
     }
     function mergeNearby() {
@@ -63,7 +68,7 @@
           const m = IT.maxStack(a.id);
           if (m <= 1 || a.count + b.count > m) continue;
           if (Math.abs(a.x - b.x) > 0.5 || Math.abs(a.z - b.z) > 0.5 || Math.abs(a.y - b.y) > 0.5) continue;
-          a.count += b.count; a.age = Math.min(a.age, b.age); remove(b); j--;
+          a.count += b.count; a.age = Math.min(a.age, b.age); a.delay = Math.max(a.delay, b.delay); remove(b); j--;
         }
       }
     }
