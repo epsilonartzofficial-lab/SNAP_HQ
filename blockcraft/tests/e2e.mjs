@@ -49,14 +49,19 @@ function sameEntities(a, b, eps = 0.05) {
 class Failure extends Error {}
 
 // ------------------------------------------------------------------ in-page helpers
-// Installed with addInitScript before the game's scripts run. They only read state or set up the test
-// (teleport, aim); gameplay itself goes through the real input handlers.
+// Installed with addInitScript before the game's scripts run. They read state and set up the test (teleport, aim,
+// find sites); gameplay goes through the game's own input handlers (the only synthetic event is the quick mouseup
+// in watchBlock, which the game handles like a real button release).
 function pageHelpers() {
   const H = (window.__e2e = { gameTime: 0 });
   // Mirror of the game's clock: the game advances by min(0.1, frame dt) every animation frame.
   let last = null;
   const clock = t => { if (last != null) H.gameTime += Math.min(0.1, Math.max(0, (t - last) / 1000)); last = t; requestAnimationFrame(clock); };
   requestAnimationFrame(clock);
+  H.keydowns = []; H.mouseDowns = [];
+  // Game time at which each mouse press actually reached the page (timings start there, not when the test sent it).
+  window.addEventListener('mousedown', e => H.mouseDowns.push({ button: e.button, t: H.gameTime }), true);
+  window.addEventListener('keydown', e => { if (!e.repeat) H.keydowns.push({ code: e.code, t: performance.now() }); }, true);
   H.frames = n => new Promise(res => { let k = 0; const f = () => (++k >= n ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
 
   const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -196,14 +201,19 @@ function pageHelpers() {
     }
     return best;
   };
-  // Nearest cell (within one block) where the player can stand close to a point, e.g. a dropped item.
+  // Where to stand to pick up an item at (x,y,z): the point closest to it inside a nearby free cell (a player can walk
+  // right up to a wall, so any spot whose 0.6-wide body stays inside the cell counts). Prefers spots within the game's
+  // pickup box (|dx|,|dz| < 1.3 and -0.6 < item y - feet y < 2.3).
   H.standNear = (x, y, z) => {
-    const fx = Math.floor(x), fy = Math.floor(y + 0.01), fz = Math.floor(z); let best = null;
-    for (let dy = 0; dy >= -1; dy--) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    const fx = Math.floor(x), fy = Math.floor(y + 0.01), fz = Math.floor(z), cl = (v, a) => Math.max(a + 0.3001, Math.min(a + 0.6999, v));
+    let best = null;
+    for (let dy = 1; dy >= -2; dy--) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
       const X = fx + dx, Y = fy + dy, Z = fz + dz;
       if (!H.standable(X, Y, Z)) continue;
-      const d = Math.hypot(X + 0.5 - x, Z + 0.5 - z) + Math.abs(Y - y) * 0.5;
-      if (!best || d < best.d) best = { x: X + 0.5, y: Y, z: Z + 0.5, d };
+      const px = cl(x, X), pz = cl(z, Z);
+      const reach = Math.abs(x - px) < 1.25 && Math.abs(z - pz) < 1.25 && y > Y - 0.55 && y < Y + 2.25;
+      const d = (reach ? 0 : 100) + Math.hypot(x - px, z - pz) + Math.abs(Y - y) * 0.1;
+      if (!best || d < best.d) best = { x: px, y: Y, z: pz, d, reach };
     }
     return best;
   };
@@ -328,6 +338,16 @@ class Game {
     return { result: () => this.ev(id => __e2e.watchResult(id), id) };
   }
 
+  // Let `seconds` of game time pass (game time runs slower than real time on a slow machine).
+  async waitGame(seconds) {
+    const t0 = await this.ev(() => __e2e.gameTime);
+    await this.until(`__e2e.gameTime >= ${t0 + seconds}`, Math.max(10000, seconds * 5000), `${seconds} s of game time did not pass`);
+  }
+  // Resolve once every dropped item has landed and its pickup delay has run out.
+  async itemsSettled(timeoutMs = 15000) {
+    await this.until('BC.game.entities.list.every(e => e.onGround && e.delay <= 0)', timeoutMs, 'dropped items did not settle');
+    await this.frames(3);
+  }
   // Damage is ignored for a few seconds after joining or respawning (player.protect); wait it out before hurting.
   async waitUnprotected() { await this.until('!(BC.game.player.protect > 0)', 10000, 'post-spawn damage protection never ended'); }
 
@@ -341,11 +361,12 @@ class Game {
   async mine(x, y, z, { timeout = 25000 } = {}) {
     const hit = await this.aim(x, y, z);
     const w = await this.watch(x, y, z, timeout, 0);
-    const t0 = await this.ev(() => __e2e.gameTime);
+    const n0 = await this.ev(() => __e2e.mouseDowns.length);
     await this.page.mouse.down({ button: 'left' });
     let r;
     try { r = await w.result(); } finally { await this.page.mouse.up({ button: 'left' }); }
     if (!r.changed) throw new Failure(`block ${x},${y},${z} (id ${hit.id}) did not break within ${timeout} ms; state ${fmt(await this.snap())}`);
+    const t0 = await this.ev(n0 => __e2e.mouseDowns[n0].t, n0);
     return { ...r, target: hit.id, seconds: r.t - t0 };
   }
 
@@ -369,6 +390,19 @@ class Game {
   }
 
   press(key) { return this.page.keyboard.press(key); }
+  // Two presses of `key` whose keydowns land within `windowMs` of each other in the page (the game's double-tap
+  // window is 280 ms). Retries when the machine is too slow to deliver them close enough. Returns the gap in ms.
+  async doubleTap(key, windowMs = 250) {
+    let gap = Infinity;
+    for (let k = 0; k < 4 && !(gap < windowMs); k++) {
+      if (k) await sleep(400);   // make sure a failed attempt's second press is not taken as the first of a pair
+      const n0 = await this.ev(() => __e2e.keydowns.length);
+      await this.press(key); await this.press(key);
+      gap = await this.ev(([n0, code]) => { const d = __e2e.keydowns.slice(n0).filter(x => x.code === code); return d.length >= 2 ? d[1].t - d[0].t : Infinity; }, [n0, key]);
+    }
+    if (!(gap < windowMs)) throw new Failure(`could not deliver a ${key} double-tap within ${windowMs} ms (last gap ${gap} ms)`);
+    return gap;
+  }
   async openInventory() { await this.press('KeyE'); await this.waitFor(() => BC.game.screen === 'inventory', null, { msg: 'E did not open the inventory' }); }
   async closeInventory() {
     await this.page.mouse.move(VIEWPORT.width / 2, 40);   // park the pointer off the slots before the lock comes back
@@ -431,7 +465,9 @@ async function runScenario(browser, sc) {
   const t = new Run(browser, sc), t0 = Date.now();
   let timer;
   try {
-    await Promise.race([sc.fn(t), new Promise((_, rej) => { timer = setTimeout(() => rej(new Failure(`scenario timed out after ${SCENARIO_TIMEOUT / 1000} s`)), SCENARIO_TIMEOUT); })]);
+    const body = sc.fn(t);
+    body.catch(() => {});   // after a timeout the body keeps failing against closed pages; don't let that crash the run
+    await Promise.race([body, new Promise((_, rej) => { timer = setTimeout(() => rej(new Failure(`scenario timed out after ${SCENARIO_TIMEOUT / 1000} s`)), SCENARIO_TIMEOUT); })]);
   } catch (e) {
     t.fails.push((e instanceof Failure ? '' : 'exception: ') + (e && e.stack && !(e instanceof Failure) ? e.stack.split('\n').slice(0, 3).join(' | ') : e.message));
   } finally { clearTimeout(timer); }
@@ -471,7 +507,6 @@ async function main() {
 }
 
 // ------------------------------------------------------------------ scenarios
-const ITEM_KEYS = { log: 'oak_log', planks: 'oak_planks', stick: 'stick', table: 'crafting_table', cobble: 'cobblestone' };
 
 scenario('A', 'Menu → Singleplayer → create Survival world (Normal, seed 12345) → HUD', async t => {
   const g = await t.open();
@@ -679,15 +714,22 @@ scenario('C', 'Survival rules: fall damage, drowning, hunger, eating, no flying;
   const ground = await g.ev(([x, z]) => __e2e.findGround(Math.floor(x), Math.floor(z), 0, 40, 1), [spawn[0], spawn[2]]);
   t.assert(ground, 'no flat dry ground near spawn');
 
-  // ---- fall damage: 10 blocks → ceil(10 - 3) = 7
+  // ---- fall damage: floor(fall distance + 1e-6 - 3) as in current Java Edition: 10.0 → 7, 4.0 → 1, 3.5 → 0
   await g.teleport(ground.x, ground.y, ground.z);
   await g.waitUnprotected();
-  await g.teleport(ground.x, ground.y + 10, ground.z, { ground: false });
-  const land = await g.until(`BC.game.player.onGround && BC.game.player.p.y < ${ground.y + 0.01} ? { health: BC.game.state.stats.health, y: BC.game.player.p.y } : null`, 15000, 'player never landed');
-  const fallDmg = 20 - land.v.health;
-  t.note(`fall of 10 blocks dealt ${fallDmg} damage (reference: 7)`);
-  t.check(fallDmg >= 6 && fallDmg <= 8, 'a 10-block fall deals 7 (±1) damage', fallDmg);
-  t.check(Math.abs(land.v.y - ground.y) < 0.01, 'landed on the ground block', land.v);
+  const fall = async h => {
+    await g.ev(() => Object.assign(BC.game.state.stats, { health: 20, invuln: 0, lastHurt: 0 }));
+    await g.teleport(ground.x, ground.y + h, ground.z, { ground: false });
+    const land = await g.until(`BC.game.player.onGround && BC.game.player.p.y < ${ground.y + 0.01} ? { health: BC.game.state.stats.health, y: BC.game.player.p.y } : null`, 15000, `player never landed from ${h} blocks`);
+    t.check(Math.abs(land.v.y - ground.y) < 0.01, `landed on the ground block after a ${h}-block fall`, land.v);
+    return 20 - land.v.health;
+  };
+  const falls = {};
+  for (const [h, want] of [[10, 7], [4, 1], [3.5, 0]]) {
+    falls[h] = await fall(h);
+    t.check(falls[h] === want, `a ${h}-block fall deals ${want} damage`, falls[h]);
+  }
+  t.note(`fall damage measured: ${Object.entries(falls).map(([h, d]) => h + ' blocks → ' + d).join(', ')}`);
   let s;
 
   // ---- hunger: exhaustion over 4 with no saturation costs one food point
@@ -701,11 +743,12 @@ scenario('C', 'Survival rules: fall damage, drowning, hunger, eating, no flying;
   await g.ev(() => { const st = BC.game.state; st.inv[st.sel] = BC.items.make('apple', 1); Object.assign(st.stats, { food: 10, saturation: 0, exhaustion: 0 }); BC.game.player.pitch = 0.9; });
   await g.frames(2);
   await g.ev(() => __e2e.startSampler());
-  const tEat0 = await g.ev(() => __e2e.gameTime);
+  const nDown = await g.ev(() => __e2e.mouseDowns.length);
   await g.page.mouse.down({ button: 'right' });
   let eaten;
   try { eaten = await g.until('BC.game.state.stats.food !== 10', 6000, 'holding right mouse with an apple never finished eating'); }
   finally { await g.page.mouse.up({ button: 'right' }); }
+  const tEat0 = await g.ev(n => __e2e.mouseDowns[n].t, nDown);
   const eatSamples = await g.ev(() => __e2e.stopSampler());
   s = await g.snap();
   const eatSecs = eaten.t - tEat0;
@@ -717,8 +760,7 @@ scenario('C', 'Survival rules: fall damage, drowning, hunger, eating, no flying;
   // A full player cannot eat.
   await g.ev(() => { const st = BC.game.state; st.inv[st.sel] = BC.items.make('apple', 1); st.stats.food = 20; });
   await g.page.mouse.down({ button: 'right' });
-  await sleep(2500);
-  await g.page.mouse.up({ button: 'right' });
+  try { await g.waitGame(2.2); } finally { await g.page.mouse.up({ button: 'right' }); }
   t.check((await g.ev(() => BC.game.state.inv[BC.game.state.sel]?.count)) === 1, 'cannot eat with a full hunger bar (apple kept)');
 
   // ---- no flying in Survival
@@ -727,9 +769,10 @@ scenario('C', 'Survival rules: fall damage, drowning, hunger, eating, no flying;
   await g.frames(3);
   s = await g.ev(() => ({ fly: BC.game.player.fly, toast: document.getElementById('toast').textContent }));
   t.check(!s.fly && /only available in Creative/.test(s.toast), 'F in Survival does not fly and explains why', s);
-  await g.press('Space'); await sleep(120); await g.press('Space');
+  const gapC = await g.doubleTap('Space');
   await g.frames(3);
   const flyAfterDouble = await g.ev(() => BC.game.player.fly);
+  t.note(`double-tap Space delivered ${gapC.toFixed(0)} ms apart`);
   await g.until('BC.game.player.onGround', 5000, 'did not land after jumping');
   t.check(!flyAfterDouble && !(await g.ev(() => BC.game.player.fly)), 'double-tapping Space in Survival does not start flying');
 
@@ -793,19 +836,26 @@ scenario('D', 'Death drops everything; respawn; walk back and pick it all up', a
     return __e2e.totals();
   });
   await g.waitUnprotected();
+  // Die with the inventory open, one dirt in the crafting grid and the rest of the stack on the cursor.
+  await g.openInventory();
+  await g.clickSlot('inv', 0);
+  await g.clickSlot('craft', 0, { button: 'right' });
+  const open = await g.ev(() => ({ cursor: __e2e.snap().cursor, grid: BC.game.state.craft.slots.filter(Boolean).length, all: __e2e.totals() }));
+  t.check(open.cursor?.count === 11 && open.grid === 1 && sameCounts(open.all, held), 'set up: 11 dirt on the cursor, 1 in the grid', open);
   // Die the way a long fall kills you, and look at the drops the instant they spawn.
-  const died = await g.ev(() => { const p = BC.game.player.p.clone(); BC.game.hurt(100, 'fall'); return { at: [p.x, p.y, p.z], ents: __e2e.entities(), inv: BC.game.state.inv.filter(Boolean).length }; });
+  const died = await g.ev(() => { const p = BC.game.player.p.clone(); BC.game.hurt(100, 'fall'); return { at: [p.x, p.y, p.z], ents: __e2e.entities(), inv: BC.game.state.inv.filter(Boolean).length, cursor: BC.game.state.cursor, grid: BC.game.state.craft.slots.filter(Boolean).length }; });
+  t.check(!died.cursor && died.grid === 0, 'death clears the cursor and crafting grid', died);
   await g.waitFor(() => BC.game.screen === 'death', null, { msg: 'death screen did not appear' });
   const ds = await g.ev(() => ({ visible: !document.getElementById('scr-death').hidden, msg: document.getElementById('death-msg').textContent, dead: BC.game.player.dead, hud: __e2e.hud() }));
   t.check(ds.visible && ds.dead, 'death screen shown', ds);
   t.check(ds.msg === 'You hit the ground too hard.', 'death message names the cause', ds.msg);
   t.check(died.inv === 0, 'inventory emptied on death', died.inv);
   const dropped = {}; for (const e of died.ents) dropped[e.key] = (dropped[e.key] || 0) + e.count;
-  t.check(sameCounts(dropped, held), 'dropped entities hold exactly what the player carried', { held, dropped });
+  t.check(sameCounts(dropped, held), 'dropped entities hold exactly what the player carried, including cursor and grid', { held, dropped });
   t.check(died.ents.every(e => Math.hypot(e.x - died.at[0], e.z - died.at[2]) < 0.01 && near(e.y, died.at[1] + 0.6, 0.01)), 'items spawn at the death spot', died.ents);
   t.check(died.ents.find(e => e.key === 'wooden_pickaxe')?.dmg === 7, 'dropped pickaxe keeps its wear');
   await g.shot('death');
-  await sleep(2500);   // let the drops settle
+  await g.itemsSettled();
   await g.page.click('#btn-respawn');
   await g.waitPlaying();
   let s = await g.snap();
@@ -876,7 +926,7 @@ scenario('E', 'Save/reload keeps blocks, inventory (grid + cursor), stats, posit
   await g.until('BC.game.entities.list.some(e => e.id === BC.items.idOf("apple") && e.onGround)', 5000, 'tossed apple never landed');
   const apple = await g.ev(() => __e2e.entities().find(e => e.key === 'apple'));
   if (Math.hypot(apple.x - gr.x, apple.z - gr.z) < 2.2) await g.teleport(gr.x, gr.y, gr.z - 2);
-  await sleep(2500);   // past the toss pickup delay
+  await g.itemsSettled();
   t.check((await g.ev(() => __e2e.entities().filter(e => e.key === 'apple').length)) === 1, 'tossed apple lies on the ground (not picked up)');
   // Inventory: 31 dirt into the grid, then 1 plank into the grid with 9 left on the cursor.
   await g.openInventory();
@@ -940,7 +990,7 @@ scenario('E', 'Save/reload keeps blocks, inventory (grid + cursor), stats, posit
   await g.page.click('#btn-singleplayer');
   await g.page.click('#btn-play-world');
   await g.waitPlaying();
-  await sleep(1500);   // past the pickup delay of the re-dropped stacks
+  await g.itemsSettled();
   const post2 = await g.ev(() => ({ all: __e2e.totals({ entities: true }), inv: __e2e.totals({ all: false }), ents: __e2e.entities(), p: BC.game.player.p.toArray() }));
   t.check(sameCounts(post2.all, pre2.all), 'full inventory: grid/cursor items survive the reload (inventory + drops), nothing lost or duplicated', { before: pre2.all, after: post2.all });
   const extra = post2.ents.filter(e => ['dirt', 'apple', 'stone'].includes(e.key) && Math.hypot(e.x - post2.p[0], e.z - post2.p[2]) < 1.5);
@@ -1006,7 +1056,7 @@ scenario('F', 'Creative: instant break, no drops, infinite placing, item palette
   const inv0 = await g.totals();
   const br = await g.mine(gr.bx + 2, gr.y - 1, gr.bz);
   t.check(br.seconds <= 0.3, 'Creative breaks a block instantly', +br.seconds.toFixed(3));
-  await sleep(1000);
+  await g.waitGame(1);
   s = await g.ev(() => ({ n: BC.game.entities.count(), totals: __e2e.totals() }));
   t.check(s.n === 0, 'breaking in Creative drops nothing', s.n);
   t.check(sameCounts(s.totals, inv0), 'inventory unchanged by breaking');
@@ -1033,7 +1083,8 @@ scenario('F', 'Creative: instant break, no drops, infinite placing, item palette
   await g.frames(2);
   t.check(await g.ev(() => BC.game.player.fly), 'F starts flying');
   const y0 = (await g.snap()).p[1];
-  await g.page.keyboard.down('Space'); await sleep(700); await g.page.keyboard.up('Space');
+  await g.page.keyboard.down('Space');
+  try { await g.until(`BC.game.player.p.y > ${y0 + 2}`, 8000, 'holding Space while flying did not rise'); } finally { await g.page.keyboard.up('Space'); }
   const y1 = (await g.snap()).p[1];
   t.check(y1 > y0 + 1, 'holding Space while flying rises', { y0, y1 });
   await g.press('KeyF');
@@ -1041,9 +1092,9 @@ scenario('F', 'Creative: instant break, no drops, infinite placing, item palette
   t.check(!(await g.ev(() => BC.game.player.fly)), 'F again stops flying');
   await g.until('BC.game.player.onGround', 8000, 'did not land after flying');
   t.check((await g.ev(() => BC.game.state.stats.health)) === 20, 'no fall damage after dropping from flight');
-  await g.press('Space'); await sleep(100); await g.press('Space');
+  const gapF = await g.doubleTap('Space');
   await g.frames(2);
-  t.check(await g.ev(() => BC.game.player.fly), 'double-tapping Space starts flying in Creative');
+  t.check(await g.ev(() => BC.game.player.fly), 'double-tapping Space starts flying in Creative', { gapMs: +gapF.toFixed(0) });
 });
 
 scenario('G', 'No pointer lock: drag-to-look, hold still to mine, menu button', async t => {
@@ -1142,8 +1193,9 @@ scenario('H', 'Touch (Pixel 7): tap through menus, touch controls, inventory lon
   const joy = await centre('#joy');
   await touch('touchStart', [{ x: joy.x, y: joy.y, id: 3 }]);
   await touch('touchMove', [{ x: joy.x, y: joy.y - 60, id: 3 }]);
-  await sleep(500);
   const knob = await g.ev(() => document.getElementById('knob').style.transform);
+  // Hold until the player has walked 1.5 blocks along the track (or give up after 6 s and let the check below report it).
+  await g.until(`(BC.game.player.p.x - ${p0[0]}) * ${head.dx} + (BC.game.player.p.z - ${p0[2]}) * ${head.dz} > 1.5`, 6000, 'joystick did not move the player').catch(() => {});
   await touch('touchEnd', []);
   const p1 = (await g.snap()).p;
   const fwd = (p1[0] - p0[0]) * head.dx + (p1[2] - p0[2]) * head.dz;
@@ -1177,7 +1229,8 @@ scenario('I', 'World generation across chunk borders: streaming, meshing, determ
   // Fly east across chunk borders with the keyboard.
   await g.teleport(-20.5, Y, 8.5, { yaw: -Math.PI / 2, pitch: 0, ground: false });
   const x0 = (await g.snap()).p[0];
-  await g.page.keyboard.down('KeyW'); await sleep(3000); await g.page.keyboard.up('KeyW');
+  await g.page.keyboard.down('KeyW');
+  try { await g.until(`BC.game.player.p.x > ${x0 + 24}`, 15000, 'holding W while flying did not move east'); } finally { await g.page.keyboard.up('KeyW'); }
   const x1 = (await g.snap()).p[0];
   t.check(x1 - x0 > 16, 'flew across at least one chunk border with W', { x0, x1 });
   await g.waitFor(() => BC.game.world.chunkReady(BC.game.player.p.x, BC.game.player.p.z), null, { msg: 'chunk under the player never meshed after flying' });
@@ -1208,6 +1261,7 @@ scenario('I', 'World generation across chunk borders: streaming, meshing, determ
   await g.teleport(300.5, Y, 0.5, { ground: false });
   await g.waitFor(() => !BC.game.world.hasChunk(0, 0), null, { timeout: 20000, msg: 'far chunks were never unloaded' });
   await g.teleport(0.5, Y, 8.5, { ground: false });
+  await g.waitFor(ch => ch.every(([cx, cz]) => BC.game.world.hasChunk(cx * 16, cz * 16)), CHUNKS, { timeout: 20000, msg: 'chunks were not regenerated after coming back' });
   const back = await g.ev(e => e.map(([x, y, z]) => BC.game.world.getBlock(x, y, z)), edits);
   t.check(fmt(back) === fmt(edits.map(e => e[3])), 'border edits survive chunk unload and regeneration', back);
   c = await g.ev(cmp, CHUNKS);
