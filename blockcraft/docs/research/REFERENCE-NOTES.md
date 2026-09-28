@@ -22,6 +22,9 @@ Provenance and limits:
   id `26.3`, release_time `2026-09-15T11:23:02+00:00`, data_version 5023, protocol 777, data_pack_version 121, resource_pack_version 97.
 - A mirror could in theory differ from what Mojang ships. I found no sign of that: dates, version ids and registry diffs agree
   with the [S] descriptions of every drop.
+- Older-version decompiles (1.21.x, 26.1.1) from other public mirrors were used only to check what changed; they are listed in the sources.
+- The simulations in sections 3.7 and 3.9 (spline evaluation, climate-noise and biome-table port, noise micro-benchmark) were done with
+  throwaway Python and Node scripts in a scratch directory. They are not in the repository. The method is described where used.
 - I did not verify hardcoded behaviour that is not in the pack or the decompiled files I opened (for example mob AI details).
   Those spots are tagged [U].
 
@@ -112,18 +115,22 @@ Dates and version ids are [P]. "New content" is from registry diffs [P]; names a
 
 | Version | Name | Date | New content | Changed core survival? |
 |---|---|---|---|---|
-| 1.21.5 | Spring to Life | 2025-03-25 | bush, cactus flower, firefly bush, leaf litter, dry grass, wildflowers, blue and brown eggs, fallen trees feature [P]; warm and cold farm animal variants [U, from memory; variant registries exist in 26.3 data] | Low. Ambience and variants only. |
+| 1.21.5 | Spring to Life | 2025-03-25 | bush, cactus flower, firefly bush, leaf litter, dry grass, wildflowers, blue and brown eggs, fallen trees feature [P]; warm and cold farm animal variants [U, from memory; variant registries exist in 26.3 data] | **Yes, one thing: fall damage.** Rounding changed from `ceil` to `floor` and safe fall distance became an attribute (section 2.13); attributed to 1.21.5 by a third-party note [S], present in code by 1.21.8 [P]. Otherwise ambience and variants. |
 | 1.21.6 | Chase the Skies | 2025-06-17 | happy ghast, dried ghast, 16 harnesses, waypoint and camera attributes; locator bar, craftable saddles, leash changes [S] | Low. Locator bar is new UI, mounts are new. |
 | 1.21.7, 1.21.8 | hotfixes | 2025-06-30, 07-17 | none of note | No. |
 | 1.21.9, 1.21.10 | The Copper Age | 2025-09-30, 10-07 | copper golem, copper tools and armor, copper chest, copper torch and lantern, shelves, `iron_chain`, copper nugget | **Yes, medium.** New tool tier between stone and iron; tools and armor smelt to nuggets. |
 | 1.21.11 | Mounts of Mayhem | 2025-12-09 | 7 spears, nautilus, zombie nautilus, camel husk, parched, netherite horse armor, Lunge enchantment | **Yes, medium.** New weapon class with speed-based charge attacks [S]. Game rules renamed to `snake_case` (`advance_time`, `spawn_mobs`) [S]. Environment attributes and timelines arrive: sky light level, `monsters_burn` and bed rules become data [P]. |
-| 26.1 | Tiny Takeover | 2026-03-24 | golden dandelion, craftable name tag, baby mob models, stonecutter conversions [S]; hotfixes 26.1.1 (04-01), 26.1.2 (04-09) | Low for gameplay. Big technical release (Java 25, storage, data-driven trades, world clocks, worldgen feature refactor). |
+| 26.1 | Tiny Takeover | 2026-03-24 | golden dandelion, craftable name tag, baby mob models, stonecutter conversions [S]; hotfixes 26.1.1 (04-01), 26.1.2 (04-09) | Low for gameplay. Big technical release (Java 25, storage, data-driven trades, world clocks [S]; worldgen feature type refactor [P]). |
 | 26.2 | Chaos Cubed | 2026-06-16 | `sulfur_caves` biome, sulfur cube mob, sulfur and cinnabar block families, 5 attributes (bounciness, friction, air drag, name tag distances), new speleothem features replacing dripstone features | Low. A new cave biome and mob. [S] friends list, F3+F4 sets default game mode, touchscreen mode removed. |
 | 26.3 | Wilderness Bound | 2026-09-15 | see 1.2 to 1.5 | Low: straw bed (sleep once, no spawn), sitting. Large technical change: fuel, brewing, worldgen data and mob spawn tables moved into data. |
 
-Conclusion: the numbers in section 2 (hunger, light, spawning, damage formulas, mob caps) live in code and data that these drops did
-not touch in any way I could see in 26.3. I did not diff them against 1.20 line by line, so "unchanged since" is [U]; "correct for 26.3" is [P].
-Cross-checks [P]: the Copper Age tier exists in 26.3 code (`ToolMaterial.COPPER`), and the spear family is in `Items`.
+Conclusion. I compared an early 1.21 decompile (`Yeet-Masta/MCP-1.21`, "MCP for 1.21", exact patch version not stated) with 26.3 for the mechanics Blockcraft needs next. Logic is identical
+for: `FoodData.tick` and the exhaustion table, `CombatRules` armor formula, `MobCategory` caps and despawn distances,
+`Monster.isDarkEnoughToSpawn`, `CropBlock` growth, farmland hydration, water and lava tick delays and drop-offs, and the `Player.attack`
+cooldown, crit and sprint-knockback code [P]. The one core change I found is **fall damage**: that 1.21 source used `Mth.ceil((fall - 3) * multipliers)`;
+1.21.8, 1.21.11, 26.1.1 and 26.3 all use `Mth.floor((fall + 1e-6 - safeFallDistance) * multipliers)` [P: code in four mirrors]. A third-party
+javap note (`stevendesu/orebit`, overlay for 1.21.5) places the change in 1.21.5 and reports an in-game check [S]. Mechanics I did not compare are
+still "correct for 26.3 [P]" but not "unchanged since" anything. The copper tier exists in 26.3 code (`ToolMaterial.COPPER`) and the spear family in `Items` [P].
 
 ## 2. Core survival reference numbers (26.3)
 
@@ -134,7 +141,8 @@ Unless tagged otherwise, every number is [P] from `data/minecraft` JSON or decom
 - Day length 24000 ticks. Timeline markers: `day` 1000, `noon` 6000, `night` 13000, `midnight` 18000, `wake_up_from_sleep` 0.
 - Sky light level track (`timeline/day.json`): 15 from tick 133 to 11867, linear down to 4 by tick 13670, stays 4 until 22330, back to 15
   at tick 133 of the next day. `skyDarken = 15 - skyLightLevel` (integer). `monsters_burn` is true from tick 23460 to 12542;
-  `bees_stay_in_hive` and the sleep window use the same 12542 to 23460 range [D: `skyDarken >= 4` first reached near tick 12542].
+  `bees_stay_in_hive` is true from 12542 to 23460. The sleep window (`skyDarken >= 4`) works out at about ticks 12520 to 23480 in clear
+  weather [D], close to that 12542 to 23460 range.
 - Weather blends the sky light toward 4: rain alpha 0.3125, thunder alpha 0.52734375. At noon: rain gives 11.56 (skyDarken 3, still
   "bright"), thunder gives 9.2 (skyDarken 5, "dark") [D]. So you can sleep at night or in a thunderstorm, but not in plain rain.
 - Block light: maximum 15, and each step loses `max(1, block light dampening)`: 1 per air block. Emission: torch and wall torch 14,
@@ -206,7 +214,7 @@ Unless tagged otherwise, every number is [P] from `data/minecraft` JSON or decom
 | Sheep | 8 | none | 0.23 | 1 to 3 | 1 to 2 mutton, 1 wool of its colour |
 | Chicken | 4 | none | 0.25 | 1 to 3 | 0 to 2 feather, 1 chicken |
 | Zombie | 20 | 3.0, follow range 35 | 0.23 | 5 (baby 12) | 0 to 2 rotten flesh; 2.5 % (killed by player) iron ingot, carrot or potato |
-| Skeleton | 20 | arrow: `ceil(|velocity| * 2.0)`, fired at speed 1.6 | 0.25 | 5 | 0 to 2 arrows, 0 to 2 bones |
+| Skeleton | 20 | arrow: `ceil(speed * 2.0)`, fired at speed 1.6 | 0.25 | 5 | 0 to 2 arrows, 0 to 2 bones |
 | Creeper | 20 | explosion radius 3, fuse 30 ticks | 0.25 | 5 | 0 to 2 gunpowder |
 | Spider | 16 | 2.0 (default monster damage) | 0.3 | 5 | 0 to 2 string; spider eye -1..1 rolled, only if killed by a player |
 
@@ -325,8 +333,11 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
   Hoe damage baseline falls as material bonus rises so the total is 1 for every hoe; hoe attack speed 1 wood, 2 stone and copper, 3 iron,
   4 diamond and netherite, 1 gold. Sword mining rule: cobweb 15, plus instant-mine and 1.5 speed override tags. Swords have no tier limit.
 - Shears: durability 238, tool rules: cobweb 15, three tag groups at 15, 5 and 2 mining speed. Flint and steel 64, bow 384, fishing rod 64, shield 336.
-- Block break progress per tick = `toolSpeed / hardness / 30` with the correct tool for drops, `/ 100` without. The player speed adds
-  enchant and effect modifiers and divides by 5 in the air or underwater (already in the Stage 1 acceptance checks).
+- Block break progress per tick = `playerSpeed / hardness / 30` when the held tool counts as correct for drops (or the block needs none),
+  else `/ 100`. `playerSpeed` = tool speed (plus the `mining_efficiency` attribute if the tool speed is above 1), times Haste and Mining Fatigue
+  effects (`+20 % per level`, `0.3^(level)`), times `block_break_speed` (1.0), times `submerged_mining_speed` (default 0.2) while the eyes are in
+  water, divided by 5 when not on the ground [P]. Check with Stage 1's numbers: log by hand 2.0 hardness gives 60 ticks (3.0 s); stone by hand
+  (hardness 1.5, no correct tool) 150 ticks (7.5 s); stone with a wooden pickaxe 22.5 ticks (1.15 s after rounding up); dirt 15 ticks [D].
 
 ### 2.10 Crops and farmland
 
@@ -366,6 +377,18 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
 - Block XP (on mining with the right tool, not with silk touch): coal ore 0 to 2, lapis 2 to 5, redstone 1 to 5, diamond 3 to 7,
   emerald 3 to 7, nether quartz 2 to 5, nether gold 0 to 1; iron, gold, copper ore 0 (XP comes from smelting, section 2.2).
 - Mob XP: hostile 5, baby zombie 12, passive animals 1 to 3 (uniform).
+
+### 2.13 Falls, drowning and other environment damage
+
+- Fall damage: `floor((fallDistance + 1e-6 - safe_fall_distance) * damageModifier * fall_damage_multiplier)`, with `safe_fall_distance` 3.0 and the
+  multiplier 1.0 by default [P]. A fall of less than 4.0 blocks does nothing, exactly 4.0 deals 1, and each further block adds 1. So a 3.5-block
+  drop is free and a jump off a 3-block ledge (fall about 4.25) deals 1. In an early 1.21 build the formula was `ceil(fall - 3)`, which gave 1 for a
+  3.5-block drop and 2 for the jump [P: early 1.21 source]. Blockcraft's Stage 1 acceptance text uses the `ceil` form, so it is one step harsher than 26.3
+  for non-integer falls. Water and some blocks reset or scale fall distance (not read).
+- Drowning: air supply 300 ticks (15 s), minus 1 per tick with the eyes in water (Respiration randomly skips ticks), plus 4 per tick when out
+  of water. When it reaches -20 (one second after 0) the entity takes 2 damage, air is set back to 0, and this repeats every 20 ticks [P].
+- Cactus 1.0 per contact tick, lava 4.0 per hit plus 15 s of burning, void 4.0 per tick below the world [P]; each subject to the hurt
+  cooldown in 2.7 (so cactus and lava hit about every 10 ticks). Burning damage per second and fire block damage were not opened [U].
 
 ## 3. World generation since 1.18, as of 26.3
 
@@ -472,7 +495,7 @@ VARIANT  T0 ice_spikes (H0) | T1 cherry_grove (H0), meadow (H2,H3), old_growth_p
 back to MIDDLE. Windswept savanna replaces the shattered pick when temperature index above 1, humidity below 4 and weirdness >= 0.
 Other picks: peaks are `jagged_peaks` (weirdness < 0) or `frozen_peaks` for T0 to T2, `stony_peaks` for T3, badlands for T4; slopes
 are `snowy_slopes` (H0, H1) or `grove` for T0 to T2; T3 and T4 use the plateau pick. Hot columns (T4) swap in badlands: `badlands`,
-`eroded_badlands` (H0, H1 with weirdness >= 0), `wooded_badlands` (H3 and above). Beach pick: T0 `snowy_beach`, T4 `desert`, else `beach`.
+`eroded_badlands` (H0, H1 with weirdness >= 0), plain `badlands` for H2 (and H0, H1 with weirdness < 0), `wooded_badlands` (H3 and above). Beach pick: T0 `snowy_beach`, T4 `desert`, else `beach`.
 
 Which pick applies where, per relief slice (C coast, N near, M mid, F far inland; E0 to E6 erosion; `midBad` = middle biome, but
 badlands in T4; `midBadSlope` = the same, but slope in T0; `shC` = shattered coast = beach for weirdness < 0, else middle; `wsav` = the
@@ -570,7 +593,7 @@ Underground biomes are separate boxes: `dripstone_caves` (continentalness 0.8 to
 |---|---|---|
 | **Minecraft 1.18+** | Six-parameter lookup, 3-spline terrain shaper, biome as label with surface rules, features and spawns. Variants by a weirdness sign, cave biomes on the depth axis. | [P] section 3 |
 | **Terraria** | Fixed order of about 60 named generation passes (Terrain, Dunes, Tunnels, Mount Caves, Generate Ice Biome, Jungle, Full Desert, Marble, Granite, Mushroom Patches, Dungeon, Corruption, Lakes, Beaches, and so on). Five vertical layers (space, surface, underground, cavern, underworld). Global placement rules: the snow biome is on the same side as the dungeon and opposite the jungle; the evil biome sits on the jungle's side; Corruption or Crimson chosen once per world. Each surface family has an underground counterpart (ice, underground jungle, underground desert, glowing mushroom). Mini-biomes (marble, granite, bee hive, spider nest, jungle temple) are placed inside host biomes. Biomes are also *tile-count* states: the player is "in" a biome when enough of its tiles are within range (about 125 to 1500 tiles by biome). Evil biomes and the Hallow spread at runtime by converting susceptible tiles; Hallow and evil block each other; spread is 6x faster on the surface in Hardmode. | [S] tModLoader wiki (step list opened), Terraria wiki snippets |
-| **Hytale** | Zones are large curated regions with their own tile biomes, caves and unique prefabs; designers decide which biomes may meet. V2 (announced 2026-01-05) moves to biome assets built as a node graph. A `WorldStructure` of type `NoiseRange` maps a 2D density value to biome ranges with a default biome, a `DefaultTransitionDistance` (32 blocks default, larger is smoother, 1 is a hard edge) and `MaxBiomeEdgeDistance` for a `DistanceToBiomeEdge` density node. Each biome asset has five parts: terrain density, material provider (block choice), props (position provider then assignments, scanner, pattern), environment provider (sky, fog, weather), tint provider (colour tint). V1 hit limits when zones and biomes multiplied. | [S] Hytale blog snippet; [P-unofficial] community decompile of the pre-release server (`HyperSystemsDev/HytaleServerDocs`); treat as [U] for retail behaviour |
+| **Hytale** | Zones are large curated regions with their own tile biomes, caves and unique prefabs; designers decide which biomes may meet. V2 (announced 2026-01-05) moves to biome assets built as a node graph. A `WorldStructure` of type `NoiseRange` maps a 2D density value to biome ranges with a default biome, a `DefaultTransitionDistance` (32 blocks default, larger is smoother, 1 is a hard edge) and `MaxBiomeEdgeDistance` for a `DistanceToBiomeEdge` density node. Each biome asset has five parts: terrain density, material provider (block choice), props (position provider then assignments, scanner, pattern), environment provider (sky, fog, weather), tint provider (colour tint). V1 hit limits when zones and biomes multiplied. | [S] Hytale blog snippet; unofficial community docs decompiled from a pre-release server jar (`HyperSystemsDev/HytaleServerDocs`), read directly but [U] for retail behaviour |
 | **Vintage Story** | Climate first: temperature from a latitude triangle wave plus noise, rainfall noise, "geologic activity", all packed in one climate map with a wobble pass. Landforms are chosen by weight and climate ranges (parent landform with mutations), each defined by terrain octaves and vertical key positions. Geologic provinces choose rock strata by weight and maximum thickness; each rock has pH, weathering, erosion and a group (sedimentary, metamorphic, igneous, volcanic); 22 rock types [S]. Soil layers follow climate. Deposits (ores) follow rock. Sea level is 110 of a 256-block default height [P]. Vegetation patches use continuous ranges (`MinTemp` -30..40 C, `MinRain`, `MinForest`, `MinShrub`, `MinFertility`, relative height) and 11 placement modes. Biomes are emergent, not enumerated. Pipeline order: maps, terrain, rock strata, caves, block layers, deposits, structures, ponds, vegetation, rivulets, light, snow, creatures. | [P] source in `anegostudios/vsessentialsmod` (`Systems/WorldGen`) |
 | **Valheim** | Nine default biomes assigned by an ordered rule list (first match wins) using distance from centre, altitude, sector angle, noise; borders wiggle by a sine pattern. Separate `terrain` (which height algorithm) and `nature` (what grows, footsteps) for each biome. **Alternative biomes** are overlay modifiers with a chance, minimum distance, required or forbidden neighbours, incompatible modifiers, edge size, average height, and min or max count; they add spawns, vegetation, locations and weather. Vegetation is placed per 64 m zone with min and max counts and altitude, tilt, ocean depth, terrain delta and forest limits. Weather has weights per biome. | [P] mod docs `JereKuusela/valheim-expand_world_data`; [S] rule count |
 | **No Man's Sky** | Voxel-based generation, then polygonisation, texturing, population; continuous and deterministic; the engine does not distinguish generated from hand-authored content (GDC 2017, Innes McKendrick). | [S] snippets only; talk not opened, so specifics are [U] |
@@ -666,7 +689,7 @@ Underground biomes are separate boxes: `dripstone_caves` (continentalness 0.8 to
     fuel). Make these data rows now because 26.3 itself moved them to data.
 14. Beds: follow the data-driven rule shape (`can_sleep`, `can_set_spawn`, `destroy_on_leave`) so a straw-bed style item is one data row. The
     8 by 5 monster check and the 100-tick sleep are cheap to copy exactly.
-15. Combat: implement the cooldown formula (`0.2 + 0.8 s^2`), crit only when falling and not sprinting, sweep with swords, 20-tick hurt cooldown
+15. Combat and damage: use the 26.3 fall formula (`floor(d + 1e-6 - 3)`), and implement the cooldown formula (`0.2 + 0.8 s^2`), crit only when falling and not sprinting, sweep with swords, 20-tick hurt cooldown
     with the 10-tick half rule, and armor `clamp(armor - damage / (2 + toughness/4), 0.2 armor, 20) / 25`. All are a few lines and testable
     against the numbers in section 2.
 16. Farming and fluids (Stage 5): random ticks at 3 per section per tick; crop growth `1 / (floor(25 / speed) + 1)`; water 5-tick delay
@@ -684,9 +707,9 @@ Underground biomes are separate boxes: `dripstone_caves` (continentalness 0.8 to
 
 ## 6. Unverified or uncertain items
 
-- Everything tagged [S] and [U] above, especially: the 26.1 world-storage change, the SDL3 mention, per-mob details of `isPreventingPlayerRest`
-  (which mobs stop sleep), the exact sun-burn mob list, skeleton arrow damage in practice, shield behaviour, enchantment effects on armor,
-  and any claim that numbers are "unchanged since" older versions.
+- Everything tagged [S] and [U] above, especially: the 26.1 world-storage change, the SDL3 mention, the exact sun-burn mob list, skeleton arrow
+  damage in practice, shield behaviour, enchantment effects on armor, the exact member lists of the fuel classes, and which drop introduced
+  fall-damage flooring (1.21.5 per a third-party note; code confirms it by 1.21.8).
 - Official minecraft.net and minecraft.wiki text was never read; 26.3 feature lists come from the shipped data plus [S] articles.
 - Terraria, Hytale, Vintage Story wiki and No Man's Sky talk content is from search snippets and third-party docs; only Vintage Story
   source, Valheim mod docs, mapgen2, mapgen4 and the tModLoader step list were read directly.
@@ -713,6 +736,10 @@ Primary mirrors and code (GitHub, read directly):
 - https://github.com/amitp/mapgen2 (`Map.as`) and https://github.com/redblobgames/mapgen4 (`map.ts`, `config.js`)
 - https://github.com/tModLoader/tModLoader/wiki/Vanilla-World-Generation-Steps
 - https://github.com/HyperSystemsDev/HytaleServerDocs (`docs/worldgen/WORLD_STRUCTURE.md`, `BIOMES.md`, `ZONES_V1.md`, `WORLDGEN_OVERVIEW.md`; unofficial)
+- Older decompiled source used only to check what changed: https://github.com/Yeet-Masta/MCP-1.21 (early 1.21.x),
+  https://github.com/sis1cat/minecraftsodium-1.21.8 , https://github.com/rrrRex1024/minecraft-1-21-11-source ,
+  https://github.com/ohnodev/decompiled-minecraft-26-1-1 ; third-party note on the fall-damage change:
+  https://github.com/stevendesu/orebit (`overlays/1.21.5/.../FallDamage.java`)
 - https://github.com/Cubitect/cubiomes (checked out for cross-reference; no data taken from it)
 
 Search results and secondary pages (snippets only, blocked from full fetch):

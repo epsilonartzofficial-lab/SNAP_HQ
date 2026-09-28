@@ -49,7 +49,7 @@ Creative worlds keep flight, instant breaking and the full item palette. Surviva
 - Tools lose durability (wood 59, stone 131, iron 250, gold 32, diamond 1561) and break.
 - Health, hunger, saturation and exhaustion follow the reference rules, including natural regeneration,
   starvation limits per difficulty and Peaceful regeneration.
-- Fall damage is `ceil(distance − 3)`. Drowning starts after 15 s of air and deals 2 damage per second.
+- Fall damage is `floor(distance − 3)` (the current Java rule; falls under 4 blocks are harmless). Drowning starts after 15 s of air and deals 2 damage per second.
 - Cactus, starvation and the void deal damage. Creative takes void damage only.
 - Death drops the whole inventory at the death spot. Respawn puts you at the world spawn.
 - Inventory: 36 slots, stack limit 64 (tools 1), click, right-click split, shift-click, number-key swap,

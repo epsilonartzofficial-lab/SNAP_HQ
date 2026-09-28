@@ -939,8 +939,8 @@ suite('survival', () => {
     assert.equal(s.air, SV.MAX_AIR);
   });
 
-  test('fallDamage = max(0, ceil(distance - 3))', () => {
-    for (const [d, dmg] of [[0, 0], [-4, 0], [3, 0], [3.01, 1], [4, 1], [4.5, 2], [23, 20]]) assert.equal(SV.fallDamage(d), dmg, `dist ${d}`);
+  test('fallDamage = max(0, floor(distance - 3)) (26.3 rule)', () => {
+    for (const [d, dmg] of [[0, 0], [-4, 0], [3, 0], [3.01, 0], [3.99, 0], [4, 1], [4.5, 1], [10, 7], [23, 20]]) assert.equal(SV.fallDamage(d), dmg, `dist ${d}`);
   });
 
   test('eat() adds food (max 20) and caps saturation at the new food level', () => {

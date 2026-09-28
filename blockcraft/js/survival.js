@@ -65,7 +65,8 @@
     } else s.air = Math.min(MAX_AIR, s.air + 4);
   }
 
-  const fallDamage = dist => Math.max(0, Math.ceil(dist - 3));
+  // Current Java rule (since about 1.21.5, confirmed in 26.3): floor(distance − 3), so falls under 4 blocks are harmless.
+  const fallDamage = dist => Math.max(0, Math.floor(dist + 1e-6 - 3));
   function canEat(s, food, creative) { return !!food && (creative || s.food < 20); }
   function eat(s, food) {
     s.food = Math.min(20, s.food + food.hunger);
