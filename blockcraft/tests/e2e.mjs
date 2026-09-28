@@ -852,7 +852,9 @@ scenario('E', 'Save/reload keeps blocks, inventory (grid + cursor), stats, posit
   const p2 = await g.placeOn(bx, y - 1, bz + 2);
   t.check(p1.changed && p2.changed, 'placed two cobblestone blocks', [p1.id, p2.id]);
   await g.press('Digit3');
-  await g.mine(bx, y, bz + 2);
+  const cobInv = await g.totals();
+  const mined = await g.mine(bx, y, bz + 2);
+  t.check(mined.from === 4 && mined.ents.some(e => e.key === 'cobblestone'), 'mining placed cobblestone with the pickaxe drops it', { mined: { from: mined.from, id: mined.id, ents: mined.ents, totals: mined.totals }, before: cobInv });
   await g.collect('cobblestone', 19);
   await g.teleport(gr.x, gr.y, gr.z);
   // Dig a ground block with a bare hand: its dirt stays in the hole as a dropped item entity.
@@ -905,7 +907,8 @@ scenario('E', 'Save/reload keeps blocks, inventory (grid + cursor), stats, posit
   t.check(post.pick && post.pick.dmg === 6, 'tool wear persisted (pickaxe dmg 6)', post.pick);
   t.check(post.stats.health === 15 && post.stats.food === 17, 'health and food persisted', post.stats);
   t.check(post.hud.hearts.filter(k => k === 'heart_full').length === 7 && post.hud.hearts.filter(k => k === 'heart_half').length === 1, 'HUD shows 7.5 hearts after reload', post.hud.hearts);
-  t.check(post.p.every((v, i) => near(v, pre.p[i], 0.01)) && near(post.yaw, pre.yaw, 1e-6), 'position and facing persisted', { before: pre.p, after: post.p });
+  t.check(post.p.every((v, i) => near(v, pre.p[i], 0.01)), 'position persisted', { before: pre.p, after: post.p });
+  t.check(near(post.yaw, pre.yaw, 1e-6), 'facing (yaw) persisted', { before: pre.yaw, after: post.yaw });
   const sig = es => es.map(e => `${e.key}:${e.count}@${e.x.toFixed(2)},${e.y.toFixed(2)},${e.z.toFixed(2)}`);
   t.check(sameEntities(pre.ents, post.ents), 'dropped item entities persisted in place', { before: sig(pre.ents), after: sig(post.ents) });
 
@@ -961,6 +964,17 @@ scenario('E', 'Save/reload keeps blocks, inventory (grid + cursor), stats, posit
   t.check(mig.v1kept, 'original v0.1 key is kept as a backup');
   t.check(mig.storedRd === 4, 'v0.1 render distance (4) migrated into settings', mig.storedRd);
   t.check(mig.rd === 4, 'migrated render distance is used in the first session after migration', { worldRd: mig.rd, stored: mig.storedRd });
+  // Settings screen in that first session: it should show the migrated value, and changing another setting must not overwrite it.
+  await m.pauseLikeEsc();
+  await m.page.click('#btn-pause-settings');
+  await m.page.waitForSelector('#scr-settings:not([hidden])');
+  t.check((await m.page.inputValue('#set-rd')) === '4', 'Settings screen shows the migrated render distance (4)', await m.page.inputValue('#set-rd'));
+  await m.page.focus('#set-fov');
+  await m.page.keyboard.press('ArrowRight');
+  const afterFov = await m.ev(() => BC.game.store.getSettings());
+  t.check(afterFov.fov === 76, 'FOV slider change is saved', afterFov.fov);
+  t.check(afterFov.renderDistance === 4, 'changing FOV does not overwrite the migrated render distance', afterFov.renderDistance);
+  await m.page.click('#btn-settings-done');
   await m.shot('migrated');
 });
 

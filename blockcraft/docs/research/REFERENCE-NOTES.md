@@ -49,8 +49,9 @@ Totals after the drop: 1286 blocks, 1658 items, 161 entity types, 67 biomes (56 
 - **Poplar wood set** (log, stripped log, wood, stripped wood, planks, stairs, slab, fence, gate, door, trapdoor, button, pressure plate,
   sign, hanging sign, shelf, sapling, potted sapling) plus `poplar_boat` and `poplar_chest_boat`. Three leaf blocks:
   `red_poplar_leaves`, `orange_poplar_leaves`, `yellow_poplar_leaves`.
-- **121 items**: the above, 16 `*_cushion` items, and 16 structure explorer maps (`abandoned_camp_map`, `buried_treasure_map`,
-  `desert_pyramid_map`, `ocean_monument_map`, the seven village maps, `woodland_mansion_map`, and others).
+- **121 items**: the above, 16 `*_cushion` items, and 16 structure explorer maps: `abandoned_camp`, `buried_ancient_city`,
+  `buried_mineshaft`, `buried_treasure`, `buried_trial_chambers`, `desert_pyramid`, `jungle_pyramid`, `ocean_monument`, `swamp_hut`,
+  `warm_ocean_ruins`, `woodland_mansion`, and five village maps (desert, plains, savanna, snowy, taiga).
 - **3 entity types**: `cushion` (the sitting entity), `poplar_boat`, `poplar_chest_boat`. 23 new sound events (poplar leaves incl.
   ambient and fall, red shrub, shelf mushroom incl. bounce, straw bed, cushion sit and get-up).
 - **1 biome**: `dappled_forest`. **1 structure family**: the abandoned camp (18 biome-specific variants).
@@ -58,15 +59,16 @@ Totals after the drop: 1286 blocks, 1658 items, 161 entity types, 67 biomes (56 
   25 times too fast, hopper and dropper bugs. A GamingOnLinux snippet mentions SDL3 [S, single source, U].
 
 Recipes [P]: straw bed = 3 hay blocks in a row gives 4 straw beds. Cushion = 3 matching wool slabs in a row (one per colour).
-`rabbit_stew_from_shelf_mushroom` exists. Wool and concrete stairs/slabs use the normal 6-to-4 / 6-to-6 pattern (not opened).
+`rabbit_stew_from_shelf_mushroom` exists. Wool and concrete stairs: 6 blocks in the usual staircase give 4; slabs: 3 blocks in a row give 6.
 
 ### 1.3 Straw bed and cushion rules [P]
 
-- Overworld dimension attribute `gameplay/straw_bed_rule`: `can_sleep: when_dark`, `can_set_spawn: never`, `destroy_on_leave: true`.
-  Normal beds: `gameplay/bed_rule` = `can_sleep: when_dark`, `can_set_spawn: always`. A code default `DESTROY_ON_USE` (cannot sleep, cannot
-  set spawn, destroyed when used) exists for dimensions where beds explode, such as the Nether.
+- Overworld dimension attribute `gameplay/straw_bed_rule` (new in 26.3): `can_sleep: when_dark`, `can_set_spawn: never`,
+  `destroy_on_leave: true`. Normal beds: `gameplay/bed_rule` = `can_sleep: when_dark`, `can_set_spawn: always`. In the Nether both rules are
+  `can_sleep: never`, `can_set_spawn: never`, `destroy_on_use: true` (the bed explodes). The bed rule as data dates from 1.21.11, when
+  environment attributes were introduced (the `environment_attribute` registry has 45 entries in 1.21.11 and none in 1.21.10).
 - So a straw bed lets you skip the night once and does not move the respawn point; it is removed when you get up. Cushions are an
-  entity you sit on. Neither is a survival-critical mechanic, but the pack now expresses bed behaviour as data.
+  entity you sit on. Neither is a survival-critical mechanic.
 
 ### 1.4 Dappled forest and abandoned camp [P]
 
@@ -95,9 +97,14 @@ Recipes [P]: straw bed = 3 hay blocks in a row gives 4 straw beds. Cushion = 3 m
   speed multiplier for the fast blocks, versus a 100-tick blasting recipe in 26.1. Net gameplay is the same (section 2.2) [D].
 - New data folders: `block_transformer` (axe, hoe, shovel conversions), `recipe/brewing`, `loot_table/till`, many new block and item tags
   that replace hardcoded lists (for example `blocks_motion`, `washed_away_by_fluids`, `turns_into_farmland`, `villagers_can_sleep_on_bed`).
-- The decompiled source shows a rewritten density-function engine that samples in batched volumes (`DensityVolume`, `sampleVolume`) and
-  moved surface rules to `worldgen/material_rule` (class `MaterialSystem`). Noise settings in 26.3 no longer embed a surface rule.
-  I read this as a worldgen performance refactor [U on intent].
+- Worldgen data was restructured: `configured_feature` became `feature` (that registry grew from 63 to 240 entries), `configured_carver`
+  became `carver`, new folders `block_state_provider`, `material_condition` and `material_rule` (surface rules moved out of the noise
+  settings, which now carry `material_rule`, `aquifers` and `debug_functions` instead of `surface_rule`). Data packs written for 26.2 will not
+  load unchanged [P folder diff; D on the consequence]. Overworld biome files still load the same climate table (the preset lives in code).
+- Mob spawn tables moved from a biome's own field into the environment attribute `gameplay/natural_mob_spawns` (with an `overlay`
+  modifier); `gameplay/creature_world_gen_spawn_probability` is new too [P]. Environment attributes layer dimension, biome and timeline values.
+- The 26.3 decompiled source samples density functions in batched volumes (`DensityVolume`, `sampleVolume`) and its surface-rule class is
+  `MaterialSystem`. The mirror has no 26.2 source to compare with, so I cannot say whether the volume sampling is new in 26.3 [U].
 
 ### 1.6 Drops of 2025 to 2026 and their effect on core survival
 
@@ -105,14 +112,14 @@ Dates and version ids are [P]. "New content" is from registry diffs [P]; names a
 
 | Version | Name | Date | New content | Changed core survival? |
 |---|---|---|---|---|
-| 1.21.5 | Spring to Life | 2025-03-25 | bush, cactus flower, firefly bush, leaf litter, dry grass, wildflowers, blue and brown eggs, fallen trees feature; warm and cold farm animal variants [S] | Low. Ambience and variants only. |
+| 1.21.5 | Spring to Life | 2025-03-25 | bush, cactus flower, firefly bush, leaf litter, dry grass, wildflowers, blue and brown eggs, fallen trees feature [P]; warm and cold farm animal variants [U, from memory; variant registries exist in 26.3 data] | Low. Ambience and variants only. |
 | 1.21.6 | Chase the Skies | 2025-06-17 | happy ghast, dried ghast, 16 harnesses, waypoint and camera attributes; locator bar, craftable saddles, leash changes [S] | Low. Locator bar is new UI, mounts are new. |
 | 1.21.7, 1.21.8 | hotfixes | 2025-06-30, 07-17 | none of note | No. |
 | 1.21.9, 1.21.10 | The Copper Age | 2025-09-30, 10-07 | copper golem, copper tools and armor, copper chest, copper torch and lantern, shelves, `iron_chain`, copper nugget | **Yes, medium.** New tool tier between stone and iron; tools and armor smelt to nuggets. |
-| 1.21.11 | Mounts of Mayhem | 2025-12-09 | 7 spears, nautilus, zombie nautilus, camel husk, parched, netherite horse armor, Lunge enchantment | **Yes, medium.** New weapon class with speed-based charge attacks [S]. All game rules renamed to `snake_case` (`advance_time`, `spawn_mobs`) [S]. |
+| 1.21.11 | Mounts of Mayhem | 2025-12-09 | 7 spears, nautilus, zombie nautilus, camel husk, parched, netherite horse armor, Lunge enchantment | **Yes, medium.** New weapon class with speed-based charge attacks [S]. Game rules renamed to `snake_case` (`advance_time`, `spawn_mobs`) [S]. Environment attributes and timelines arrive: sky light level, `monsters_burn` and bed rules become data [P]. |
 | 26.1 | Tiny Takeover | 2026-03-24 | golden dandelion, craftable name tag, baby mob models, stonecutter conversions [S]; hotfixes 26.1.1 (04-01), 26.1.2 (04-09) | Low for gameplay. Big technical release (Java 25, storage, data-driven trades, world clocks, worldgen feature refactor). |
 | 26.2 | Chaos Cubed | 2026-06-16 | `sulfur_caves` biome, sulfur cube mob, sulfur and cinnabar block families, 5 attributes (bounciness, friction, air drag, name tag distances), new speleothem features replacing dripstone features | Low. A new cave biome and mob. [S] friends list, F3+F4 sets default game mode, touchscreen mode removed. |
-| 26.3 | Wilderness Bound | 2026-09-15 | see 1.2 to 1.5 | Low to medium: beds are now data-driven, straw bed, sitting. |
+| 26.3 | Wilderness Bound | 2026-09-15 | see 1.2 to 1.5 | Low: straw bed (sleep once, no spawn), sitting. Large technical change: fuel, brewing, worldgen data and mob spawn tables moved into data. |
 
 Conclusion: the numbers in section 2 (hunger, light, spawning, damage formulas, mob caps) live in code and data that these drops did
 not touch in any way I could see in 26.3. I did not diff them against 1.20 line by line, so "unchanged since" is [U]; "correct for 26.3" is [P].
@@ -147,9 +154,11 @@ Unless tagged otherwise, every number is [P] from `data/minecraft` JSON or decom
 ### 2.2 Furnace, fuel and smelting
 
 - Smelting time is 200 ticks (10 s) per item in a furnace, and for blasting and smoking recipes in the 26.3 data; blast furnace and smoker
-  apply a speed multiplier of 2, so 100 ticks. Campfire cooking recipes take 600 ticks (30 s).
+  apply a speed multiplier of 2, so 100 ticks [P data, D for the resulting 100]. Campfire cooking recipes take 600 ticks (30 s).
 - Fuel burn time in ticks (base value, furnace) and items smelted per fuel = ticks / 200. In a blast furnace or smoker the burn time is
-  halved but the items per fuel item stay the same.
+  halved but the items per fuel item stay the same [D]. The item lists in the table come from the `cookingFuel` calls in `Items`; the counts
+  in brackets are how many item registrations use that value (block items registered in loops may not all be counted, so the exact
+  member lists are [U]).
 
 | Fuel | Ticks | Seconds | Items |
 |---|---|---|---|
@@ -167,6 +176,8 @@ Unless tagged otherwise, every number is [P] from `data/minecraft` JSON or decom
 | Wool carpets | 67 | 3.35 | 0.33 |
 | Wool slabs, bamboo | 50 | 2.5 | 0.25 |
 
+- Outputs: raw iron or iron ore gives an iron ingot, raw gold or gold ore a gold ingot, cobblestone stone, sand or red sand glass, any
+  burnable log charcoal, raw meat and fish their cooked version, potato a baked potato.
 - Smelting recipes: 73 in the pack, all 200 ticks. XP per item (in brackets): raw or ore iron (0.7), copper (0.7), gold (1.0), coal ore (0.1),
   lapis ore (0.2), redstone ore (0.7), diamond ore and emerald ore (1.0), ancient debris (2.0), nether quartz ore (0.2), cobblestone to stone
   (0.1), stone to smooth stone (0.1), sand or red sand to glass (`#smelts_to_glass`, 0.1), any log to charcoal (`#logs_that_burn`, 0.15),
@@ -177,10 +188,10 @@ Unless tagged otherwise, every number is [P] from `data/minecraft` JSON or decom
 ### 2.3 Crafting recipes needed next
 
 - Planks: 1 log gives 4 planks (any of the log tags). Stick: 2 planks vertical gives 4. Crafting table: 4 planks in a 2x2.
-- Furnace: 8 `#stone_crafting_materials` (cobblestone, blackstone, deepslate) ring. Blast furnace: 5 iron... exact: 3 smooth stone, 1 furnace,
-  3 iron ingots. Smoker: furnace + 4 logs. Campfire: 3 logs, 3 sticks, 1 coal or charcoal. Chest: 8 planks ring.
-- Pickaxe: XXX over a 2-stick column (material X = `#wooden_tool_materials`, stone, copper, iron, diamond tag items). Axe, hoe: 2 wide
-  plus 2 sticks; shovel: 1 material plus 2 sticks; sword: 2 material plus 1 stick. Shears: 2 iron ingots diagonal. Bucket: 3 iron ingots.
+- Furnace: 8 `#stone_crafting_materials` (cobblestone, blackstone, deepslate) in a ring. Blast furnace: 5 iron ingots, 1 furnace, 3 smooth
+  stone. Smoker: furnace + 4 logs. Campfire: 3 logs, 3 sticks, 1 coal or charcoal. Chest: 8 planks in a ring.
+- Pickaxe: 3 material over a 2-stick column (material = the `#wooden_tool_materials`, stone, copper, iron or diamond tag items). Axe: 3 material
+  + 2 sticks. Hoe: 2 material + 2 sticks. Shovel: 1 material + 2 sticks. Sword: 2 material + 1 stick. Shears: 2 iron ingots diagonal. Bucket: 3 iron ingots.
 - Armor: helmet 5, chestplate 8, leggings 7, boots 4 of the material (leather, copper ingot, iron ingot, gold ingot, diamond).
   Chainmail is not craftable. Shield: 6 planks and 1 iron ingot.
 - Bread: 3 wheat in a row. Hay block: 9 wheat. Bone meal: 1 bone gives 3. Bowl: 3 planks gives 4. Mushroom stew: 2 mushrooms + bowl.
@@ -202,23 +213,30 @@ Unless tagged otherwise, every number is [P] from `data/minecraft` JSON or decom
 Looting adds 0 to 1 per level on these counts. Monster base health is the living default 20; default follow range 16.
 
 - Difficulty scaling applies to the damage the player takes from scaling sources: Peaceful 0, Easy `min(d/2 + 1, d)`, Normal `d`, Hard
-  `d * 1.5`. Armor reduction comes after this. Zombie melee therefore is 2.5 / 3 / 4.5 before armor. Skeleton aim spread is
-  `14 - 4 * difficultyId` (Easy 10, Normal 6, Hard 2).
+  `d * 1.5`. Armor reduction comes after this. Zombie melee therefore is 2.5 / 3 / 4.5 before armor (spider 2 / 2 / 3). Skeleton aim spread
+  is `14 - 4 * difficultyId` (Easy 10, Normal 6, Hard 2). Which damage types scale (`damage_type` data): `explosion` always; almost every other
+  type (`mob_attack`, `arrow`, `cactus`, `lava`, `fall`...) only when a living non-player entity caused it, so falls, drowning and cactus
+  from the environment do not scale. Exhaustion per hit is 0.1 for mob attacks, arrows, explosions, cactus, lava and fire, and 0 for fall,
+  drowning, starvation, burning, magic and generic damage.
+- Explosion damage to an entity: `dist = distance / (2 * radius)`, `pow = (1 - dist) * exposure`, damage `(pow^2 + pow) / 2 * 7 * (2 * radius) + 1`
+  (up to 43 for a creeper at point-blank on Normal; Easy 22.5, Hard 64.5). A charged creeper doubles the radius. Exposure is the share of
+  rays that reach the entity unobstructed.
 - Creeper: starts its fuse when the target is closer than 3 blocks (distance squared below 9), stops and cools if the target is farther than
   7 (distance squared above 49); falling adds to the swell counter (`fall distance * 1.5`).
 - Sun burning: undead with no helmet ignite for 8 s when the `monsters_burn` attribute is true (daytime), the mob can see the sky, is not in
   water, rain or powder snow, and a random test `random * 30 < (brightness - 0.4) * 2` passes (roughly 4 % per tick in full daylight). A helmet takes
   0 to 1 durability instead. Zombies and skeletons burn; creepers and spiders do not [U for the exact list, standard behaviour].
 - Spawn caps per category (`MobCategory`): monster 70, creature 10, ambient 15, axolotl 5, underground water creature 5, water creature 5,
-  water ambient 20. The live cap is `max * spawnableChunks / 289` (17x17 chunks around one player = 289). Caps count in-range mobs only.
+  water ambient 20. The live cap is `max * spawnableChunks / 289` (17x17 chunks around one player = 289). Exactly which mobs are counted
+  against a cap was not read [U].
 - Despawn: distance beyond 128 blocks (64 for water ambient) removes a non-persistent mob immediately; between 32 and 128, after 600
   ticks without action a mob has a 1 in 800 chance per tick to vanish; inside 32 blocks it never despawns (its action timer resets).
-  Persistent (named, leashed, holding an item) mobs never despawn.
+  Mobs flagged persistent never despawn (what sets the flag, such as a name tag or a picked-up item, was not read [U]).
 - Spawn attempts: pack centre picked randomly in loaded chunks; must be at least 24 blocks from any player and within 128; pack members
   spread by `nextInt(6) - nextInt(6)` blocks. Monster categories run every tick; creature (passive) spawning runs only when `gameTime % 400 == 0`
   (every 20 s) in addition to chunk generation. Passive spawns need a grass block below and raw brightness above 8.
-- Beds: hostile mobs that "prevent rest" block sleeping within 8 horizontal and 5 vertical blocks [P, box confirmed; the per-mob
-  predicate `isPreventingPlayerRest` was not opened, U].
+- Beds: every `Monster` "prevents rest" (`isPreventingPlayerRest` returns true) except a zombified piglin, which only does so while angry at
+  that player. Any such monster inside the 8 horizontal and 5 vertical block box blocks sleeping [P].
 - Rotten flesh gives Hunger 30 s at 80 % chance; raw chicken Hunger 30 s at 30 %; spider eye Poison 5 s; pufferfish poison, hunger and nausea.
 
 ### 2.5 Food values
@@ -239,7 +257,7 @@ Nutrition = hunger points (half drumsticks). Saturation = `nutrition * modifier 
 | Rotten flesh | 4 | 0.8 | Spider eye | 2 | 3.2 |
 | Golden apple | 4 | 9.6 | Golden carrot | 6 | 14.4 |
 
-Mushroom stew 6 and beetroot soup 6 (stew formula, saturation modifier not printed here), pumpkin pie 8 / 4.8, cookie 2 / 0.4, dried kelp 1 / 0.6.
+Also: mushroom stew 6 / 7.2, beetroot soup 6 / 7.2, rabbit stew 10 / 12.0, pumpkin pie 8 / 4.8, cookie 2 / 0.4, dried kelp 1 / 0.6, beetroot 1 / 1.2.
 
 ### 2.6 Hunger, exhaustion, regeneration
 
@@ -247,9 +265,9 @@ Mushroom stew 6 and beetroot soup 6 (stew formula, saturation modifier not print
   is 0, food -1 (not in Peaceful). Exhaustion is capped at 40.
 - Sources: jump 0.05, sprint-jump 0.2 total, sprinting 0.1 per metre, swimming 0.01 per metre, walking 0, sneaking 0, breaking a block 0.005,
   hitting an entity 0.1, taking damage 0.1 by default (per damage type), Hunger effect 0.005 per tick per level, healing 6.0 (below).
-- Natural regeneration (game rule on): with food 20 and saturation above 0, every 10 ticks heal `min(saturation, 6) / 6` HP and add that
-  much times 6 exhaustion (`min(sat, 6)`). With food 18 or more (and low saturation), every 80 ticks heal 1 HP and add 6.0 exhaustion.
-  Below 18 there is no regeneration.
+- Natural regeneration (game rule `natural_health_regeneration` on, player hurt): with food 20 and saturation above 0, every 10 ticks heal
+  `min(saturation, 6) / 6` HP and add `min(saturation, 6)` exhaustion. Otherwise with food 18 or more, every 80 ticks heal 1 HP and add
+  6.0 exhaustion. Below 18 there is no regeneration.
 - Starvation at food 0: every 80 ticks 1 damage, but only while health is above 10 on Easy, above 1 on Normal, always on Hard.
 - Sprinting requires food above 6. Peaceful: +1 HP per second, +1 saturation per second, +1 food every 10 ticks; no hunger loss.
 
@@ -257,8 +275,8 @@ Mushroom stew 6 and beetroot soup 6 (stew formula, saturation modifier not print
 
 - Attack speed attribute: fist 4.0. Delay = `20 / attack_speed` ticks. Strength scale `s = clamp((ticksSinceSwing + 0.5) / delay, 0, 1)`.
   Damage multiplier `0.2 + 0.8 * s^2` on the base damage; enchant bonus damage is scaled by `s`. Fist damage 1.0. "Full strength" means `s > 0.9`.
-- Critical hit: x1.5 on base damage when full strength and falling (`fallDistance > 0`), not on ground, ladder or vine, in water, riding,
-  mobility-restricted (for example in a web), and not sprinting, and the target is a living entity.
+- Critical hit: x1.5 on base damage when full strength and falling (`fallDistance > 0`), and not on the ground, on a ladder or vine, in
+  water, riding, blind (`isMobilityRestricted` is the Blindness effect) or sprinting, and the target is a living entity.
 - Sprint knockback: sprinting with full strength adds 0.5 knockback and disqualifies crit and sweep. Base hit knockback is 0.4 for any
   damage; resistance scales it; ground targets get vertical velocity `min(0.4, y/2 + power)`, horizontal velocity halves then subtracts
   the push.
@@ -318,8 +336,9 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
   `speed = 1 + sum(blockSpeed)` over the 3x3 farmland below: the centre tile counts fully, the 8 neighbours count a quarter. A block that
   `grows_crops` gives 1, or 3 if its moisture is above 0. If the same crop stands on both axes next to it (or on a diagonal) speed is halved.
   Best case speed is 1 + 3 + 8 x 0.75 = 10, so 1 in 3 per random tick; dry farmland only gives 4, so 1 in 7 [D].
-  A random tick reaches a given block with probability 3 / 4096 per game tick, so a best-case stage takes about 68 s and a full
-  crop about 8 minutes of loaded time on average [D].
+  A random tick reaches a given block with probability 3 / 4096 per game tick (one every ~1,365 ticks), so a best-case stage takes about
+  4,100 ticks (3.4 minutes) and a full crop about 24 minutes of loaded time on average; dry farmland (1 in 7) takes about 9,600 ticks per
+  stage (56 minutes per crop); a crop with neighbours on both axes has its speed halved [D].
 - Bone meal adds 2 to 5 age stages (`nextInt(2, 5)`).
 - Harvest: age 7 drops 1 wheat plus 1 seed plus a binomial 0 to 3 extra seeds (probability 0.5714); younger drops 1 seed. Tall or short
   grass drops wheat seeds with 12.5 % (fortune raises it); oak leaves drop a sapling with 5 %, a stick 2 %, an apple 0.5 %.
@@ -337,7 +356,7 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
   slope 4, delay 10. When lava level rises there is a 3 in 4 chance the delay is multiplied by 4.
 - New source blocks: water becomes a source when at least 2 horizontal neighbours are sources and the block below is solid or a source
   (rule `water_source_conversion`, default true). Lava conversion is game rule `lava_source_conversion`, default false.
-  An adjacent source or flowing block above pushes level 8 falling flow into empty space below.
+  Water or lava directly above a cell makes it a falling flow (level 8).
 
 ### 2.12 Experience
 
@@ -358,9 +377,11 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
 - Two consequences: terrain is continuous even where the biome flips, and any new biome is a new box in the parameter table,
   not a new terrain algorithm.
 - Biomes are looked up on a 4x4x4 block grid (quart positions) with a seeded jitter when read at block level (`BiomeManager`,
-  zoom 4). Each climate noise is sampled at `x * 0.25` after a small domain shift (about +-4 blocks, from an `offset` noise with
-  first octave -3 and amplitude x4) that roughens borders [P].
+  zoom 4). Each climate noise is sampled at `x * 0.25` after a small domain shift (an `offset` noise with first octave -3, times 4;
+  about 5 blocks at one standard deviation [D]) that roughens borders [P].
 - World: min Y -64, height 384, sea level 63. Blockcraft is 80 tall with sea level 24, so every height number below needs rescaling.
+- World spawn (`spawn_target` in the noise settings) is searched only where continentalness is at least -0.11 (land) and weirdness is
+  outside (-0.16, 0.16), that is away from river valleys [P].
 - Large Biomes preset: the same tables with noise first octaves 2 lower for continentalness, erosion, temperature and humidity
   (x4 wavelength); weirdness (ridges) is unchanged [P].
 - Every overworld biome file also holds its attributes: sky, fog, water and grass/foliage colours, ambient sounds and music, spawn
@@ -392,7 +413,7 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
 - Erosion E0..E6: [-1, -0.78], [-0.78, -0.375], [-0.375, -0.2225], [-0.2225, 0.05], [0.05, 0.45], [0.45, 0.55], [0.55, 1]. E0 is the most
   rugged, E6 the flattest.
 - Continentalness: mushroom [-1.2, -1.05], deep ocean [-1.05, -0.455], ocean [-0.455, -0.19], coast [-0.19, -0.11], near inland [-0.11, 0.03],
-  mid inland [0.03, 0.3], far inland [0.3, 1]. Inland = near + mid + far ([-0.11, 0.55] for the "inland" span used by swamps).
+  mid inland [0.03, 0.3], far inland [0.3, 1]. The code also defines an "inland" span [-0.11, 0.55], used for valley swamps and sulfur caves.
 - Weirdness slices, each mapped to a terrain relief class through PV (valleys are the smallest slice):
 
 | Weirdness (ridges) | PV | Class | Weirdness (ridges) | PV | Class |
@@ -409,8 +430,9 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
 
 - Six-dimensional nearest lookup: the table is a list of parameter points, each with a min-max range per parameter plus an `offset`
   (0 for all vanilla entries). Fitness = sum of squared distances, where the distance to a range is 0 inside it and the gap outside it,
-  plus offset squared; the lowest fitness wins. The 26.3 table has about 7,600 points (I count 7,594 with depth doubled), spatially
-  indexed with an R-tree (`Climate.RTree`) [P/D].
+  plus offset squared; the lowest fitness wins. The 26.3 table has about 7,600 points (my port of the builder gives 7,594 with the
+  surface points doubled for depth 0 and 1, and exactly the 56 Overworld biomes of the `is_overworld` tag, which is a useful cross-check),
+  spatially indexed with an R-tree (`Climate.RTree`) [P/D].
 - The builder code (`OverworldBiomeBuilder`) generates the table, so the "data" is code. Ranges are aligned with the band edges above,
   which means a dense lookup by band index gives the same answer in almost every cell [D, my inference; test before relying on it].
 
@@ -452,25 +474,33 @@ Other picks: peaks are `jagged_peaks` (weirdness < 0) or `frozen_peaks` for T0 t
 are `snowy_slopes` (H0, H1) or `grove` for T0 to T2; T3 and T4 use the plateau pick. Hot columns (T4) swap in badlands: `badlands`,
 `eroded_badlands` (H0, H1 with weirdness >= 0), `wooded_badlands` (H3 and above). Beach pick: T0 `snowy_beach`, T4 `desert`, else `beach`.
 
-Which table applies by band (continentalness x erosion), condensed from `addMidSlice/addHighSlice/addLowSlice/addPeaks/addValleys`:
+Which pick applies where, per relief slice (C coast, N near, M mid, F far inland; E0 to E6 erosion; `midBad` = middle biome, but
+badlands in T4; `midBadSlope` = the same, but slope in T0; `shC` = shattered coast = beach for weirdness < 0, else middle; `wsav` = the
+windswept savanna swap; condensed by hand from `addMidSlice`, `addLowSlice`, `addHighSlice`, `addPeaks`, `addValleys`):
 
-| Continentalness | E0 | E1 | E2 | E3 | E4 | E5 | E6 |
-|---|---|---|---|---|---|---|---|
-| coast (all slices) | stony shore (mid and low), middle or peak-slice variants (high) | same | stony shore or middle | beach (low) or middle | beach (weirdness < 0) or middle | shattered coast | beach or middle |
-| near inland | slope (mid), middle or badlands (low) | middle, badlands or slope (cold) | middle | middle | middle | middle or windswept savanna | swamp or mangrove, else middle in T0 |
-| mid inland | slope / peak | middle, plateau or slope | plateau | middle or badlands | middle | shattered | swamp or mangrove |
-| far inland | slope / peak | plateau or slope | plateau | plateau | middle | shattered | swamp or mangrove |
+```
+mid slice   C E0-E2 stony_shore (all T, H)   | N..F E0 slope | N..M E1 midBadSlope, F E1 slope (T0) or plateau | E2 N mid, M midBad, F plateau
+            E3 C..N mid, M..F midBad | E4 C beach (weirdness < 0) else mid, N..F mid | E5 C shC, N mid+wsav, M..F shattered
+            E6 C beach (weirdness < 0) else mid; N..F mid only in T0; swamp (T1-T2) or mangrove (T3-T4) over N..F
+low slice   C E0-E2 stony_shore | E0-E1 N midBad, M..F midBadSlope | E2-E3 N mid, M..F midBad | C E3-E4 beach | E4 N..F mid
+            E5 C shC, N mid+wsav, M..F mid | E6 C beach; N..F mid only in T0; swamp / mangrove over N..F as above
+high slice  E0-E1 C mid | E0 N slope, M..F peak | E1 N midBadSlope, M..F slope | E2-E3 C..N mid | E2 M..F plateau | E3 M midBad, F plateau
+            E4 C..F mid | E5 C..N mid+wsav, M..F shattered | E6 C..F mid
+peak slice  E0 C..F peak | E1 C..N midBadSlope, M..F peak | E2-E3 C..N mid | E2 M..F plateau | E3 M midBad, F plateau | E4 C..F mid
+            E5 C..N shattered+wsav, M..F shattered | E6 C..F mid
+valley      river (frozen_river in T0) at C..N E0-E1, C..F E2-E5, C E6 | inland E6 swamp / mangrove / frozen_river (T0) | M..F E0-E1 midBad
+```
 
-Only valleys (PV below -0.85) generate `river` / `frozen_river` (T0). Peaks slices (PV above 0.7) use E0 for peaks and mountain relief
-on inland columns. Underground: `dripstone_caves` (continentalness 0.8 to 1.0), `lush_caves` (humidity 0.7 to 1.0), `sulfur_caves`
-(coast to inland, erosion 5 or 6, weirdness -1.1 to -0.85, new in 26.2), `deep_dark` (erosion 0 or 1, depth 1.1).
+Underground biomes are separate boxes: `dripstone_caves` (continentalness 0.8 to 1.0), `lush_caves` (humidity 0.7 to 1.0), `sulfur_caves`
+(coast to inland, erosion 5 or 6, weirdness -1.1 to -0.85, new in 26.2), all at depth 0.2 to 0.9; `deep_dark` (erosion 0 or 1, depth 1.1).
 
 ### 3.6 Rivers, coasts, oceans
 
 - Oceans: temperature picks one of 5 ocean types (frozen, cold, plain, lukewarm, warm), two depth classes (deep from -1.05 to -0.455).
   Mushroom fields sit below continentalness -1.05 (islands in the deepest ocean) [P].
-- Coast band (-0.19 to -0.11, only 0.08 wide): beaches where erosion is 3 or 4 (flat), stony shore where erosion is 0 to 2 (cliffs), shattered
-  coast where erosion is 5. A beach is a *biome*: T0 gets snowy beach, T4 gets desert sand [P].
+- Coast band (-0.19 to -0.11, only 0.08 wide): beaches on flat coast (erosion 3 to 6, mostly in the low slices or with negative weirdness),
+  stony shore where erosion is 0 to 2 (cliffs), shattered coast where erosion is 5. A beach is a *biome*: T0 gets snowy beach, T4 gets a
+  desert [P].
 - Rivers are the valley slice (|weirdness| < 0.05). They are placed at coast, near inland and, for erosion 2 to 5, all the way to far
   inland. They do not appear in high-relief valleys (inland erosion 0 or 1 gives a land biome) or in the flattest inland zone (erosion
   6 gives swamp or mangrove instead). River channels come from the offset spline dipping below sea level in the same cells [P/D].
@@ -483,9 +513,10 @@ on inland columns. Underground: `dripstone_caves` (continentalness 0.8 to 1.0), 
   coordinates: continentalness at the top level, erosion inside it, peaks-and-valleys (or ridges) inside that. `offset` breakpoints on
   continentalness: -1.1, -1.02, -0.51, -0.44, -0.18, -0.16, -0.15, -0.1, 0.25, 1.0 (the last five hold 7 to 11-point erosion splines). `factor`
   breakpoints: -0.19, -0.15, -0.1, 0.03, 0.06. `jaggedness` breakpoints: -0.11, 0.03, 0.65.
-- Density at a point: `depth = gradient(y) + offset + (-0.50375)`; `sloped = 4 * quarter_negative((depth + jaggedness * jagged_noise) * factor) +
-  base_3d_noise`; the final density interpolates on 4x4x8 block cells and carves caves (cheese, spaghetti, noodle, entrances) [P]. Where
-  `sloped < 0` the block is air; the terrain surface is where depth is about 0, so **surface Y is about 128 + 128 * offset** ignoring noise [D].
+- Density at a point: `depth = gradient(y) + offset`, where the `offset` function is `-0.50375 + spline(...)` and `gradient` runs from 1.5
+  at Y -64 to -1.5 at Y 320. Then `sloped = 4 * quarter_negative((depth + jaggedness * half_negative(jagged_noise)) * factor) + base_3d_noise`.
+  The final density is interpolated on 4x4x8 block cells and has caves subtracted (cheese, spaghetti, noodle, entrances) [P]. Solid where
+  the density is above 0. The terrain surface is where depth is about 0, so **surface Y is about 128 + 128 * offset** ignoring noise [D].
 - Evaluating the shipped splines by my own code gives approximate surface heights (Y in the 384-tall world, sea level 63) [D]:
 
 | Continentalness | Erosion E0 (rugged, -0.9) | E2 (-0.3) | E4 (0.3) | E6 (0.8) |
@@ -498,7 +529,8 @@ on inland columns. Underground: `dripstone_caves` (continentalness 0.8 to 1.0), 
 | 0.8 (far inland), valley / mid / peak | 105 / 176 / 249 | 39 / 118 / 136 | 56 / 65 / 76 | 61 / 64 / 76 |
 
 - Overall range of the spline surface is about Y 25 to 252; plains sit near 62 to 68; oceans are 15 to 30 blocks below sea level; peaks
-  are 190 to 250. Factor ranges 0.63 to 6.3 (low factor = steep cliffs), jaggedness 0 to 0.63 [D].
+  are 190 to 250. `factor` ranges 0.63 to 6.3 (it scales how strongly depth pulls the density, so low values let the 3D noise dominate: rougher,
+  more overhangs; my reading, U) and `jaggedness` 0 to 0.63 (spiky mountain ridges) [D].
 
 ### 3.8 Surface rules
 
@@ -508,15 +540,16 @@ on inland columns. Underground: `dripstone_caves` (continentalness 0.8 to 1.0), 
   (`surface`, `surface_secondary`, `surface_swamp`, `small_patch`, `powder_snow`, `ice`, `gravel`), and `vertical_gradient` (random
   transition). Result nodes are blocks, `bandlands` (terracotta bands from `clay_bands_offset`), and ore veins.
 - Surface layer depth per column = `surface_noise * 2.75 + 3 + random * 0.25` (about 3 to 6 blocks) [P].
-- Default: grass block if not underwater else dirt; stone below. Examples: desert, beach: sand over sandstone (`deep_under_floor`);
-  badlands: layered terracotta by Y band with red sand and orange terracotta above Y 256; frozen and jagged peaks: stone with snow; swamp: water
-  patches where `surface_swamp` noise > 0 at Y 62; dappled forest: coarse dirt patches; deepslate replaces stone across Y 0 to 8; bedrock floor
-  at the bottom. Ore veins are also material rules (copper in granite, iron in tuff) [P].
+- Default: grass block if not underwater, else dirt. Examples: desert and beaches: sand over sandstone below `deep_under_floor`; badlands:
+  terracotta bands from the `bandlands` node with red sand on top; peaks have dedicated sub-rules (stone, snow, powder snow, packed ice
+  patches; details not read, U); swamp: water pools where `surface_swamp` noise is above 0 at Y 62; dappled forest: coarse dirt patches;
+  deepslate replaces stone across Y 0 to 8 (vertical gradient); bedrock floor at the bottom. Ore veins are also material rules (copper
+  veins with granite filler, iron with tuff) [P].
 
 ### 3.9 How many biomes, and what vanilla looks like statistically
 
 - 67 biome files in 26.3; 56 are Overworld (52 surface + `dripstone_caves`, `lush_caves`, `deep_dark`, `sulfur_caves`); 5 Nether, 5 End,
-  `the_void` [P]. Land biomes are about 40 of the 52. Everything else in vanilla is variation inside those (weather, colours, features).
+  `the_void` [P]. About 40 of the 52 surface biomes are land (52 minus 9 ocean types, mushroom fields and 2 rivers) [D].
 - I re-implemented the climate noise from the JSON parameters (own RNG, not Xoroshiro, so statistics only) and the 26.3 table, then
   sampled 30,000 random points over a 600 km square [D]. Top shares of total area: forest 11.5 %, plains 10.1 %, ocean 6.8 %, river
   6.2 %, cold ocean 4.3 %, lukewarm ocean 4.3 %, savanna 4.1 %, taiga 3.6 %, deep ocean 3.3 %, snowy plains 3.2 %. Rare: dappled forest
@@ -538,10 +571,10 @@ on inland columns. Underground: `dripstone_caves` (continentalness 0.8 to 1.0), 
 | **Minecraft 1.18+** | Six-parameter lookup, 3-spline terrain shaper, biome as label with surface rules, features and spawns. Variants by a weirdness sign, cave biomes on the depth axis. | [P] section 3 |
 | **Terraria** | Fixed order of about 60 named generation passes (Terrain, Dunes, Tunnels, Mount Caves, Generate Ice Biome, Jungle, Full Desert, Marble, Granite, Mushroom Patches, Dungeon, Corruption, Lakes, Beaches, and so on). Five vertical layers (space, surface, underground, cavern, underworld). Global placement rules: the snow biome is on the same side as the dungeon and opposite the jungle; the evil biome sits on the jungle's side; Corruption or Crimson chosen once per world. Each surface family has an underground counterpart (ice, underground jungle, underground desert, glowing mushroom). Mini-biomes (marble, granite, bee hive, spider nest, jungle temple) are placed inside host biomes. Biomes are also *tile-count* states: the player is "in" a biome when enough of its tiles are within range (about 125 to 1500 tiles by biome). Evil biomes and the Hallow spread at runtime by converting susceptible tiles; Hallow and evil block each other; spread is 6x faster on the surface in Hardmode. | [S] tModLoader wiki (step list opened), Terraria wiki snippets |
 | **Hytale** | Zones are large curated regions with their own tile biomes, caves and unique prefabs; designers decide which biomes may meet. V2 (announced 2026-01-05) moves to biome assets built as a node graph. A `WorldStructure` of type `NoiseRange` maps a 2D density value to biome ranges with a default biome, a `DefaultTransitionDistance` (32 blocks default, larger is smoother, 1 is a hard edge) and `MaxBiomeEdgeDistance` for a `DistanceToBiomeEdge` density node. Each biome asset has five parts: terrain density, material provider (block choice), props (position provider then assignments, scanner, pattern), environment provider (sky, fog, weather), tint provider (colour tint). V1 hit limits when zones and biomes multiplied. | [S] Hytale blog snippet; [P-unofficial] community decompile of the pre-release server (`HyperSystemsDev/HytaleServerDocs`); treat as [U] for retail behaviour |
-| **Vintage Story** | Climate first: temperature from a latitude triangle wave plus noise, rainfall noise, "geologic activity", all packed in one climate map with a wobble pass. Landforms are chosen by weight and climate ranges (parent landform with mutations), each defined by terrain octaves and vertical key positions. Geologic provinces choose rock strata by weight and maximum thickness; each rock has pH, weathering, erosion and a group (sedimentary, metamorphic, igneous, volcanic); 22 rock types [S]. Soil layers follow climate. Deposits (ores) follow rock. Vegetation patches use continuous ranges (`MinTemp` -30..40 C, `MinRain`, `MinForest`, `MinShrub`, `MinFertility`, relative height) and 11 placement modes. Biomes are emergent, not enumerated. Pipeline order: maps, terrain, rock strata, caves, block layers, deposits, structures, ponds, vegetation, rivulets, light, snow, creatures. | [P] source in `anegostudios/vsessentialsmod` (`Systems/WorldGen`) |
+| **Vintage Story** | Climate first: temperature from a latitude triangle wave plus noise, rainfall noise, "geologic activity", all packed in one climate map with a wobble pass. Landforms are chosen by weight and climate ranges (parent landform with mutations), each defined by terrain octaves and vertical key positions. Geologic provinces choose rock strata by weight and maximum thickness; each rock has pH, weathering, erosion and a group (sedimentary, metamorphic, igneous, volcanic); 22 rock types [S]. Soil layers follow climate. Deposits (ores) follow rock. Sea level is 110 of a 256-block default height [P]. Vegetation patches use continuous ranges (`MinTemp` -30..40 C, `MinRain`, `MinForest`, `MinShrub`, `MinFertility`, relative height) and 11 placement modes. Biomes are emergent, not enumerated. Pipeline order: maps, terrain, rock strata, caves, block layers, deposits, structures, ponds, vegetation, rivulets, light, snow, creatures. | [P] source in `anegostudios/vsessentialsmod` (`Systems/WorldGen`) |
 | **Valheim** | Nine default biomes assigned by an ordered rule list (first match wins) using distance from centre, altitude, sector angle, noise; borders wiggle by a sine pattern. Separate `terrain` (which height algorithm) and `nature` (what grows, footsteps) for each biome. **Alternative biomes** are overlay modifiers with a chance, minimum distance, required or forbidden neighbours, incompatible modifiers, edge size, average height, and min or max count; they add spawns, vegetation, locations and weather. Vegetation is placed per 64 m zone with min and max counts and altitude, tilt, ocean depth, terrain delta and forest limits. Weather has weights per biome. | [P] mod docs `JereKuusela/valheim-expand_world_data`; [S] rule count |
 | **No Man's Sky** | Voxel-based generation, then polygonisation, texturing, population; continuous and deterministic; the engine does not distinguish generated from hand-authored content (GDC 2017, Innes McKendrick). | [S] snippets only; talk not opened, so specifics are [U] |
-| **Amit Patel (Red Blob Games)** | mapgen2: rank-based redistribution of elevation (`y = 1 - (1-x)^2`) and moisture (uniform) to control area shares; land biomes from an elevation x moisture table with 4 elevation bands (below 0.3, 0.3 to 0.6, 0.6 to 0.8, above 0.8) and 4 to 6 moisture bands each (15 land biomes: scorched, bare, tundra, snow, temperate desert, shrubland, taiga, grassland, deciduous forest, rain forest, seasonal forest, subtropical desert, tropical rain forest...); rivers by following downslope corners to the coast; lakes when 30 % of corners are water. mapgen4: noise for coastline only, elevation from distance to coast, rainfall by a wind sweep with evaporation and orographic rain shadow, rivers by flow accumulation. | [P] `amitp/mapgen2` `Map.as`, `redblobgames/mapgen4` `map.ts` |
+| **Amit Patel (Red Blob Games)** | mapgen2: rank-based redistribution of elevation (`y = 1 - (1-x)^2`) and moisture (uniform) to control area shares; land biomes from an elevation x moisture table: 4 elevation bands (below 0.3, 0.3 to 0.6, 0.6 to 0.8, above 0.8) with 4, 4, 3 and 4 moisture classes, giving 15 cells and 13 distinct land biomes (subtropical desert, grassland, tropical seasonal and rain forest; temperate desert, deciduous and rain forest; shrubland, taiga; bare, scorched, tundra, snow) plus beach, marsh, lake, ice and ocean; rivers by following downslope corners to the coast; lakes when 30 % of corners are water. mapgen4: noise for coastline only, elevation from distance to coast, rainfall by a wind sweep with evaporation and orographic rain shadow, rivers by flow accumulation. | [P] `amitp/mapgen2` `Map.as`, `redblobgames/mapgen4` `map.ts` |
 | **Whittaker, Holdridge, Koppen** | Biome as a function of mean temperature and precipitation. Koppen: A tropical (all months at or above 18 C), B dry (evaporation exceeds rain, BW desert or BS steppe by threshold), C temperate (coldest month 0 to 18 C, one month above 10 C), D continental (coldest at or below 0 C, warmest above 10 C), E polar (no month above 10 C). Holdridge adds a potential evapotranspiration axis. | [S] |
 | **Terralith and similar packs** | About 95 new biomes on the vanilla multi-noise system, plus canyons, shattered and amplified terrain, floating islands and about 10 cave types. Shows the parameter-table approach scales past 50 labels when the table and surface rules are data. | [S] |
 
@@ -603,12 +636,14 @@ on inland columns. Underground: `dripstone_caves` (continentalness 0.8 to 1.0), 
    5 temperatures x 5 humidities, a few tens of thousands of entries in a `Uint16Array`) instead of a nearest-point search; write a test that compares
    it with a brute-force search on random samples. Use `Uint16` ids because 200+ outcomes exceed 255.
 4. Rescale vertical geometry asymmetrically. Above sea level compress vanilla's 63..250 range into sea level + 0..~52 (a factor of about
-   0.28 keeps 80 blocks enough); below sea level use about half of vanilla depth (ocean floor 8 to 14 below sea, trenches 16). Do not
-   copy vanilla's absolute heights. Keep the snow line and tree line as fractions of the local relief.
+   0.28; sea level 24 + 52 = 76 fits under 80); below sea level use about half of vanilla depth (vanilla ocean floors are 15 and 28 below
+   sea level, so 8 and 14 here) and keep at least 6 blocks of stone above bedrock. Do not copy vanilla's absolute heights. Keep the snow
+   line and tree line as fractions of the local relief.
 5. Keep the world's horizontal feature scale smaller than vanilla. Vanilla's median land patch is about 340 blocks across and continents
-   are about 2000 blocks; with a render distance of 8 chunks (128 blocks) a player would see one or two biomes per session. Consider a
-   scale factor of 0.25 to 0.5 for continentalness and temperature and smaller for humidity and weirdness. Choose after the census tool shows
-   candidates (per `BIOMES.md`, proportions are the owner's decision).
+   are about 2000 blocks; with a render distance of 8 chunks (a 256-block-wide view) a player would usually see one to three biomes at
+   a time, and 200+ outcomes would almost never show up in a session. Consider a scale factor of 0.25 to 0.5 for continentalness and
+   temperature and smaller for humidity and weirdness. Choose after the census tool shows candidates (per `BIOMES.md`, proportions are
+   the owner's decision).
 6. Use quantile mapping (precomputed CDF lookup, 256 entries) on continentalness so ocean share is a parameter, as Patel's rank
    redistribution does; noise distribution is seed-independent enough to precompute once.
 7. Rivers: use the folded-ridge valley slice through the height spline, biome label `river` where the slice and band tables say so. Add a
@@ -637,10 +672,14 @@ on inland columns. Underground: `dripstone_caves` (continentalness 0.8 to 1.0), 
 16. Farming and fluids (Stage 5): random ticks at 3 per section per tick; crop growth `1 / (floor(25 / speed) + 1)`; water 5-tick delay
     with 7 blocks of spread, lava 30-tick delay with 3; cap fluid updates per frame so a lake does not stall a tick.
 17. Workers: run generation and meshing in Web Workers with `Uint8Array` or `Uint16Array` chunk buffers transferred, not copied. Sample noise
-    in batched volumes per chunk into typed arrays; Mojang's own 26.3 refactor moved to volume sampling [P source, U on motive].
+    in batched volumes per chunk into typed arrays; the 26.3 decompiled source is organised around volume sampling too [P source; U on why].
 18. Census and inspector (Stage 4): reuse the same field functions so the biome map, F3 inspector and the census read one source of truth.
     Use my vanilla-like baselines (section 3.9) as the comparison point, not as targets.
-19. Do not treat the mirror-derived tables as licensed data. Write Blockcraft's own biome names, colours and tables; keep only the structural
+19. Author outcomes as compositions, not 200 hand-written records. Vanilla reaches its 52 surface labels from 25 temperature x humidity cells,
+    relief slices and a variant flag; the analogue here is about 45 base biomes plus a small set of modifier patches (wet, dry, rocky, coastal,
+    old growth, and so on), each patch listing only its differences from the base (surface blocks, tree weights, plant palette, water
+    pools), as Valheim's alt biomes do. A compatibility table decides which patches may combine (`BIOMES.md` already proposes this).
+20. Do not treat the mirror-derived tables as licensed data. Write Blockcraft's own biome names, colours and tables; keep only the structural
     ideas (bands, slices, nearest lookup, layered rules). The roadmap already requires original names and art.
 
 ## 6. Unverified or uncertain items
@@ -656,6 +695,9 @@ on inland columns. Underground: `dripstone_caves` (continentalness 0.8 to 1.0), 
   are statistical estimates (sampling error about 0.2 percentage points on 10 % shares). The spline height table is my evaluation of the
   shipped splines and ignores 3D noise, jaggedness and terrain blending.
 - The claim in 3.4 that a dense band-indexed table equals the nearest-point lookup is my inference from range alignment, not tested.
+- Whether the batched-volume density engine and other 26.3 source changes are new in 26.3: the mirror has no 26.2 source, so unknown.
+- The 26.3 data-format facts (feature and material_rule folders, natural_mob_spawns attribute) are [P] from JSON diffs, but I did not read
+  Mojang's own explanation of them.
 - No physical-hardware or browser performance test was run; the micro-benchmark is one Node 22 process on a shared sandbox.
 
 ## 7. Sources
