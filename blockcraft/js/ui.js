@@ -152,7 +152,8 @@
     const ta = $('transfer-text'); ta.value = text || ''; ta.readOnly = mode === 'export';
     $('btn-transfer-go').textContent = mode === 'export' ? 'Copy' : 'Import';
     $('transfer-file-label').hidden = mode === 'export';
-    const dl = $('transfer-download'); dl.hidden = mode !== 'export';
+    // The claude.ai artifact viewer blocks page-started downloads, so only offer the link elsewhere.
+    const dl = $('transfer-download'); dl.hidden = mode !== 'export' || !!(window.claude);
     if (mode === 'export') {
       try { if (dl.href.startsWith('blob:')) URL.revokeObjectURL(dl.href); dl.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); } catch (e) { dl.hidden = true; }
       dl.download = (name || 'world').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() + '.blockcraft.json';
