@@ -91,5 +91,9 @@
     return { n2, n3 };
   }
 
+  // Extension points shared by all modules; game.js runs them. Each entry is a list of functions.
+  // tick(G) at 20 per second, frame(G, dt) every frame, worldLoaded(G) / worldUnloaded(G) around a world session.
+  BC.hooks = BC.hooks || { tick: [], frame: [], worldLoaded: [], worldUnloaded: [] };
+
   BC.util = { mulberry32, hashStr, clamp, smooth, javaHash, parseSeed, makeNoise };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -33,7 +33,7 @@
   let hudHidden = false, debugOn = false;
 
   // Extension points for other modules (devtools, lighting, creatures...). Each is a list of functions.
-  const hooks = BC.hooks = BC.hooks || { tick: [], frame: [], worldLoaded: [], worldUnloaded: [] };
+  const hooks = BC.hooks;
   const run = (list, ...a) => { for (const f of list) { try { f(...a); } catch (e) { reportError(e); } } };
   const G = BC.game = { state, player, store, hooks, get world() { return W; }, get entities() { return E; }, get record() { return rec; }, get screen() { return screen; } };
 
@@ -154,7 +154,7 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
   // ---------------------------------------------------------------- world lifecycle
-  function disposeWorld() { if (E) E.clear(); if (W) W.dispose(); R.clearParticles(); W = null; E = null; }
+  function disposeWorld() { if (rec) run(hooks.worldUnloaded, G); if (E) E.clear(); if (W) W.dispose(); R.clearParticles(); W = null; E = null; }
   G.listWorlds = () => store.listWorlds();
   G.createWorld = function (opts) {
     const r = store.newWorld(opts);
@@ -191,6 +191,9 @@
     rec = w;
     W = BC.world.create(w, R); W.setRenderDistance(settings.renderDistance);
     E = BC.entities.create(W, R); E.load(w.entities);
+    // Services the world offers to block logic (torches dropping when their support breaks, saplings, etc.).
+    W.dropItem = (stack, x, y, z) => { if (stack && state.mode === 'survival') E.drop(stack, x, y, z); };
+    W.isSurvival = () => state.mode === 'survival';
     dayTime = w.dayTime; state.mode = w.mode;
     state.cursor = null; state.craft = { n: 2, slots: INV.empty(9) }; state.eating = 0;
     if (!w.spawn) {
@@ -216,6 +219,7 @@
     if (collides(player.p.x, player.p.y, player.p.z, STAND_H)) player.p.y = W.surfaceY(Math.floor(player.p.x), Math.floor(player.p.z));
     U.resetHud(); U.invalidateRecipes();
     equipT = 0; heldKey = null;
+    run(hooks.worldLoaded, G);
     saveNow();
     if (player.dead) { U.setDeath(player.deathMsg); setScreen('death'); }
     else startPlaying();
@@ -236,6 +240,7 @@
     }
     quitArmed = false;
     orbitCenter.copy(player.p);
+    run(hooks.worldUnloaded, G);
     if (E) E.clear(); E = null; rec = null;
     releaseInputs();
     setScreen('title');
@@ -485,8 +490,12 @@
     const cur = W.getBlock(x, y, z); if (cur && !LIQUID[cur]) return false;
     const s = held(); const d = s && IT.get(s.id);
     if (!d || d.kind !== 'block') return false;
-    if (SOLID[d.block] && x + 1 > player.p.x - HW && x < player.p.x + HW && y + 1 > player.p.y && y < player.p.y + player.height && z + 1 > player.p.z - HW && z < player.p.z + HW) return false;
-    W.setBlock(x, y, z, d.block);
+    // Block-specific placement rules: canPlace(world, x, y, z, face) and placeAs(...) for oriented variants.
+    const bd = DEFS[d.block];
+    if (bd.canPlace && !bd.canPlace(W, x, y, z, h.n)) return false;
+    const placeId = bd.placeAs ? bd.placeAs(W, x, y, z, h.n, player) : d.block;
+    if (SOLID[placeId] && x + 1 > player.p.x - HW && x < player.p.x + HW && y + 1 > player.p.y && y < player.p.y + player.height && z + 1 > player.p.z - HW && z < player.p.z + HW) return false;
+    W.setBlock(x, y, z, placeId);
     if (state.mode === 'survival') { s.count--; if (s.count <= 0) state.inv[state.sel] = null; }
     swing();
     return true;
