@@ -288,8 +288,9 @@ suite('blocks', () => {
   test('block ids 1..20 are stable (saved in worlds; 1..19 identical to v0.1)', () => {
     const keys = ['grass_block', 'dirt', 'stone', 'cobblestone', 'sand', 'oak_log', 'oak_leaves', 'oak_planks', 'glass', 'water',
       'bedrock', 'snowy_grass_block', 'bricks', 'coal_ore', 'iron_ore', 'gold_ore', 'diamond_ore', 'cactus', 'stone_bricks', 'crafting_table'];
-    assert.equal(BC.blocks.NB, keys.length + 1);
     keys.forEach((k, i) => assert.equal(BC.blocks.DEFS[i + 1].key, k, `id ${i + 1}`));
+    // Stage 2 ids (30–35) are fixed too once shipped.
+    same(['furnace', 'furnace_x', 'lit_furnace', 'lit_furnace_x', 'chest', 'chest_x'].map((k, i) => BC.blocks.DEFS[30 + i].key), ['furnace', 'furnace_x', 'lit_furnace', 'lit_furnace_x', 'chest', 'chest_x']);
     assert.equal(B.AIR, 0);
   });
 
@@ -403,8 +404,9 @@ suite('blocks', () => {
 // ════════════════════════════════════════════════════════════════════════════ items
 
 suite('items', () => {
-  test('block items share the block id (1..20)', () => {
-    for (let b = 1; b < BC.blocks.NB; b++) {
+  test('block items share the block id (every registered block, except item:false variants)', () => {
+    for (const b of BC.blocks.ids()) {
+      if (BC.blocks.DEFS[b].item === false) { assert.equal(IT.get(b), null, `variant block ${b} must not have an item`); continue; }
       const it = IT.get(b);
       assert.ok(it, `no item for block ${b}`);
       assert.equal(it.id, b);
@@ -821,6 +823,49 @@ suite('crafting', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════ survival
+
+suite('stage 2 › furnace and smelting', () => {
+  const C = BC.containers, IT2 = BC.items;
+  const st = (k, n) => IT2.make(k, n);
+  test('smelting table: cobblestone→stone, sand→glass, raw iron→ingot, any log→charcoal, dirt→nothing', () => {
+    const r = k => { const o = BC.smelting.result(IT2.idOf(k)); return o ? IT2.get(o.id).key : null; };
+    same([r('cobblestone'), r('sand'), r('raw_iron'), r('oak_log'), r('dirt')], ['stone', 'glass', 'iron_ingot', 'charcoal', null]);
+  });
+  test('fuel ticks follow the reference (coal 1600, planks 300, stick 100, wooden pickaxe 200)', () => {
+    same(['coal', 'charcoal', 'oak_planks', 'stick', 'wooden_pickaxe', 'dirt'].map(k => BC.smelting.fuelTicks(IT2.idOf(k))), [1600, 1600, 300, 100, 200, 0]);
+  });
+  test('one coal smelts exactly 8 items at 200 ticks each', () => {
+    const f = C.create('furnace'); f.slots[0] = st('cobblestone', 20); f.slots[1] = st('coal', 1);
+    let lit = 0;
+    for (let t = 0; t < 2000; t++) if (C.furnaceTick(f).lit) lit++;
+    assert.equal(f.slots[2].count, 8); assert.equal(f.slots[0].count, 12); assert.equal(f.slots[1], null);
+    assert.equal(lit, 1600, 'burns for the fuel duration (1600 ticks)');
+  });
+  test('first item takes 200 ticks; output stops when the stack is full; progress decays when unlit', () => {
+    const f = C.create('furnace'); f.slots[0] = st('sand', 2); f.slots[1] = st('coal', 1);
+    for (let t = 0; t < 199; t++) C.furnaceTick(f);
+    assert.equal(f.slots[2], null); C.furnaceTick(f); assert.equal(f.slots[2].count, 1);
+    const g = C.create('furnace'); g.slots[0] = st('sand', 5); g.slots[1] = st('coal', 1); g.slots[2] = st('glass', 64);
+    for (let t = 0; t < 400; t++) C.furnaceTick(g);
+    same([g.slots[2].count, g.slots[1].count, g.cook], [64, 1, 0], 'no fuel wasted when output is full');
+    const h = C.create('furnace'); h.cook = 50; for (let t = 0; t < 10; t++) C.furnaceTick(h); assert.equal(h.cook, 30);
+  });
+  test('output must match: raw iron will not smelt onto glass', () => {
+    const f = C.create('furnace'); f.slots[0] = st('raw_iron', 1); f.slots[1] = st('coal', 1); f.slots[2] = st('glass', 1);
+    for (let t = 0; t < 300; t++) C.furnaceTick(f);
+    same([f.slots[0].count, f.slots[1].count, f.burn], [1, 1, 0]);
+  });
+  test('pack/unpack round trip and shift-click targets', () => {
+    const f = C.create('furnace'); f.slots[0] = st('sand', 3); f.burn = 40; f.burnMax = 1600; f.cook = 77;
+    same(C.pack(C.unpack(C.pack(f))), C.pack(f));
+    same([C.furnaceTarget(st('sand', 1)), C.furnaceTarget(st('coal', 1)), C.furnaceTarget(st('dirt', 1))], [0, 1, -1]);
+    assert.equal(C.unpack({ t: 'nope' }), null);
+  });
+  test('recipes: furnace from 8 cobblestone, chest from 8 planks', () => {
+    const ring = k => { const g = new Array(9).fill(IT2.idOf(k)); g[4] = 0; return g; };
+    same([IT2.get(BC.crafting.match(ring('cobblestone'), 3).outId).key, IT2.get(BC.crafting.match(ring('oak_planks'), 3).outId).key], ['furnace', 'chest']);
+  });
+});
 
 suite('survival', () => {
   const stats = over => Object.assign(SV.newStats(), over);

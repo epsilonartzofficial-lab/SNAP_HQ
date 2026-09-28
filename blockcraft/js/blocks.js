@@ -64,7 +64,7 @@
     if (!t.side) t.side = t.top;
     if (!t.bottom) t.bottom = t.top;
     const s = t.side, f = t.front || s;
-    return [s, s, t.bottom, t.top, f, f];
+    return d.frontAxis === 'x' ? [f, f, t.bottom, t.top, s, s] : [s, s, t.bottom, t.top, f, f];
   }
 
   // Mining time, following the reference game's formula:

@@ -21,7 +21,9 @@
   let settings = store.getSettings();
 
   // ---------------------------------------------------------------- state
-  const state = { mode: 'survival', inv: INV.empty(36), sel: 0, cursor: null, craft: { n: 2, slots: INV.empty(9) }, stats: S.newStats(), eating: 0 };
+  const state = { mode: 'survival', inv: INV.empty(36), sel: 0, cursor: null, craft: { n: 2, slots: INV.empty(9) }, stats: S.newStats(), eating: 0, open: null };
+  const CT = BC.containers;
+  let containers = new Map();   // "x,y,z" → chest or furnace contents (block entities)
   const player = {
     p: new THREE.Vector3(), v: new THREE.Vector3(), yaw: 0, pitch: 0, onGround: false, fly: false, sneaking: false, sprinting: false,
     inWater: false, eyeInWater: false, fallDist: 0, dead: false, deathMsg: '', height: STAND_H, protect: 0,
@@ -134,6 +136,8 @@
       inventory: INV.pack(inv), stats: Object.assign({}, state.stats), dead: player.dead, deathMsg: player.deathMsg, fallDist: +player.fallDist.toFixed(2),
     };
     rec.entities = E.pack().concat(extra);
+    rec.containers = {};
+    for (const [k, c] of containers) rec.containers[k] = CT.pack(c);
     return rec;
   }
   let lastSaveFailed = false, quitArmed = false;
@@ -193,6 +197,9 @@
     rec = w;
     W = BC.world.create(w, R); W.setRenderDistance(settings.renderDistance);
     E = BC.entities.create(W, R); E.load(w.entities);
+    containers = new Map();
+    for (const [k, o] of Object.entries(w.containers || {})) { const c = CT.unpack(o); if (c && /^-?\d+,\d+,-?\d+$/.test(k)) containers.set(k, c); }
+    state.open = null;
     // Services the world offers to block logic (torches dropping when their support breaks, saplings, etc.).
     W.dropItem = (stack, x, y, z) => { if (stack && state.mode === 'survival') E.drop(stack, x, y, z); };
     W.isSurvival = () => state.mode === 'survival';
@@ -429,6 +436,25 @@
     if (player.onGround && !player.fly && hs > 0.5) { bob += hs * dt * 1.9; bobAmp = Math.min(1, bobAmp + dt * 4); } else bobAmp = Math.max(0, bobAmp - dt * 4);
   }
 
+  // Furnaces burn and smelt while their chunk is loaded (as in the reference game). Every second, containers whose
+  // block was replaced by other means (commands, future pistons) spill their contents instead of vanishing.
+  let containerCheck = 0;
+  function tickContainers() {
+    const validate = ++containerCheck % 20 === 0;
+    for (const [k, c] of containers) {
+      const [x, y, z] = k.split(',').map(Number);
+      if (!W.chunkReady(x, z)) continue;
+      const id = W.getBlock(x, y, z);
+      if (validate && (!DEFS[id] || DEFS[id].container !== c.type)) { spillContainer(k, x, y, z); continue; }
+      if (c.type !== 'furnace') continue;
+      const r = CT.furnaceTick(c);
+      if (!r.changed) continue;
+      const swap = r.lit ? BC.blocks.FURNACE_LIT[id] : BC.blocks.FURNACE_UNLIT[id];
+      if (swap) W.setBlock(x, y, z, swap);
+      if (state.open && state.open.key === k && screen === 'inventory') U.renderInventory();
+    }
+    if (state.open && screen === 'inventory' && state.open.c.type === 'furnace') U.renderInventory();
+  }
   function gameTick() {
     const st = state.stats;
     S.tickTimers(st);
@@ -441,6 +467,7 @@
       if (touching(B.CACTUS)) hurt(1, 'cactus');
     } else st.air = S.MAX_AIR;
     if (player.p.y < -32) hurt(4, 'void');
+    tickContainers();
     run(hooks.tick, G);
   }
 
@@ -475,8 +502,16 @@
   const held = () => state.inv[state.sel];
   const env = () => ({ inWater: player.eyeInWater, airborne: !player.onGround && !player.fly });
 
+  // Drop a container's contents at its block and forget it (both game modes, as in the reference game).
+  function spillContainer(key, x, y, z) {
+    const c = containers.get(key); if (!c) return;
+    for (const st of c.slots) if (st) E.drop(st, x, y, z);
+    containers.delete(key);
+    if (state.open && state.open.key === key) { closeInventory(true); setScreen('play'); }
+  }
   function breakBlock(h) {
     const id = h.id;
+    if (DEFS[id].container) spillContainer(CT.key(h.x, h.y, h.z), h.x, h.y, h.z);
     W.setBlock(h.x, h.y, h.z, 0);
     R.burst(h.x, h.y, h.z, id);
     if (state.mode === 'survival') {
@@ -511,7 +546,9 @@
   }
   function pickBlock() {
     const h = raycast(); if (!h) return;
-    const id = h.id;
+    // variant blocks (lit furnace, wall torch...) pick the item they drop
+    const id = IT.get(h.id) ? h.id : (DEFS[h.id].drop && IT.key(DEFS[h.id].drop) ? IT.key(DEFS[h.id].drop).id : 0);
+    if (!id) return;
     const at = state.inv.findIndex((s, i) => i < 9 && s && s.id === id);
     if (at >= 0) { G.selectSlot(at); return; }
     if (state.mode === 'creative') {
@@ -569,7 +606,12 @@
     // use: crafting table, eat, place
     if (useHeld) {
       const usable = h && DEFS[h.id].use && !(player.sneaking && s);   // sneaking with an item in hand places instead
-      if (useFresh && usable) { useFresh = false; useHeld = false; if (DEFS[h.id].use === 'crafting') openInventory('table'); return; }
+      if (useFresh && usable) {
+        useFresh = false; useHeld = false;
+        if (DEFS[h.id].use === 'crafting') openInventory('table');
+        else if (DEFS[h.id].container) openContainer(h);
+        return;
+      }
       if (d && d.food && S.canEat(state.stats, d.food, creative) && !usable) {
         state.eating += dt / 1.6;
         if (Math.random() < dt * 6) R.burst(Math.floor(eyePos().x), Math.floor(eyePos().y - 0.6), Math.floor(eyePos().z), B.LEAVES, 2);
@@ -596,6 +638,15 @@
     setScreen('inventory');
     U.openInventory(kind);
   }
+  function openContainer(h) {
+    if (screen !== 'play' || player.dead) return;
+    const key = CT.key(h.x, h.y, h.z), type = DEFS[h.id].container;
+    let c = containers.get(key);
+    if (!c || c.type !== type) { c = CT.create(type); containers.set(key, c); }
+    openInventory(type);
+    state.open = { key, x: h.x, y: h.y, z: h.z, c };
+    U.openInventory(type);
+  }
   function returnToInventory(stacks) {
     for (const s of stacks) {
       const c = INV.clone(s), left = INV.addPlayer(state.inv, c, state.sel);
@@ -604,7 +655,7 @@
   }
   function closeInventory(silent) {
     const back = [state.cursor].concat(state.craft.slots).filter(Boolean);
-    state.cursor = null; state.craft.slots = INV.empty(9);
+    state.cursor = null; state.craft.slots = INV.empty(9); state.open = null;
     returnToInventory(back);
     if (!silent) startPlaying();
   }
@@ -617,14 +668,19 @@
     if (c === 'craft') return state.craft.slots[i];
     if (c === 'result') { const r = G.craftResult(); return r && r.stack; }
     if (c === 'palette') return IT.make(i, 1);
+    if ((c === 'chest' || c === 'furnace') && state.open) return state.open.c.slots[i];
     return null;
   };
+  const boxSlots = c => ((c === 'chest' || c === 'furnace') && state.open ? state.open.c.slots : null);
   G.slotAction = function (c, i, action) {
     const btn = action === 'right' ? 2 : 0;
     const creative = state.mode === 'creative';
     const MAIN = INV.MAIN, HOT = INV.HOTBAR;
+    const box = state.open && state.open.c;
     if (c === 'inv') {
-      if (action === 'shift') INV.quickMove(state.inv, i, [[state.inv, i < 9 ? MAIN : HOT]]);
+      if (action === 'shift' && box && box.type === 'chest') INV.quickMove(state.inv, i, [[box.slots, box.slots.map((_, k) => k)]]);
+      else if (action === 'shift' && box && box.type === 'furnace' && state.inv[i] && CT.furnaceTarget(state.inv[i]) >= 0) INV.quickMove(state.inv, i, [[box.slots, [CT.furnaceTarget(state.inv[i])]]]);
+      else if (action === 'shift') INV.quickMove(state.inv, i, [[state.inv, i < 9 ? MAIN : HOT]]);
       else if (action === 'middle') { if (creative && state.inv[i] && !state.cursor) state.cursor = IT.make(state.inv[i].id, IT.maxStack(state.inv[i].id)); }
       else state.cursor = INV.click(state.inv, i, btn, state.cursor);
     } else if (c === 'craft') {
@@ -653,17 +709,30 @@
       else state.cursor = IT.make(i, action === 'right' ? 1 : m);
     } else if (c === 'trash' && creative) {
       state.cursor = null;
+    } else if (box && (c === 'chest' || c === 'furnace')) {
+      if (action === 'shift') INV.quickMove(box.slots, i, [[state.inv, HOT.slice().reverse()], [state.inv, MAIN.slice().reverse()]]);
+      else if (action === 'middle') { /* no-op */ }
+      else if (c === 'furnace' && i === CT.OUT) {
+        // output slot: take only
+        const o = box.slots[i];
+        if (o && !state.cursor) { state.cursor = o; box.slots[i] = null; }
+        else if (o && INV.stackable(state.cursor, o) && state.cursor.count + o.count <= IT.maxStack(o.id)) { state.cursor.count += o.count; box.slots[i] = null; }
+      } else {
+        const accept = c === 'furnace' && i === CT.FUEL ? st => BC.smelting.fuelTicks(st.id) > 0 : null;
+        state.cursor = INV.click(box.slots, i, btn, state.cursor, accept);
+      }
     }
     U.renderInventory();
   };
   G.swapWithHotbar = function (c, i, n) {
-    const src = c === 'inv' ? state.inv : c === 'craft' ? state.craft.slots : null;
+    const src = c === 'inv' ? state.inv : c === 'craft' ? state.craft.slots : boxSlots(c);
+    if (c === 'furnace' && (i === CT.OUT || (i === CT.FUEL && state.inv[n] && !BC.smelting.fuelTicks(state.inv[n].id)))) return;
     if (!src || (c === 'inv' && i === n)) return;
     const t = src[i]; src[i] = state.inv[n]; state.inv[n] = t;
     U.renderInventory();
   };
   G.dropFromSlot = function (c, i, all) {
-    const src = c === 'inv' ? state.inv : c === 'craft' ? state.craft.slots : null;
+    const src = c === 'inv' ? state.inv : c === 'craft' ? state.craft.slots : boxSlots(c);
     if (!src || !src[i]) return;
     const s = src[i], n = all ? s.count : 1;
     E.toss(Object.assign({}, s, { count: n }), eyePos().clone(), lookDir(), 2);

@@ -256,7 +256,7 @@
     histPos = history.length;
     input.value = prefill || ''; updateSuggest();
     renderLog();
-    setTimeout(() => input.focus(), 0);
+    input.focus();   // synchronously, so keys typed right after opening land in the input
   }
   function closeConsole(toPause) {
     input.blur();

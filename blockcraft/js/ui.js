@@ -259,10 +259,24 @@
   U.openInventory = function (kind) {
     invKind = kind; hover = null;
     const creativePalette = kind === 'player' && G.state.mode === 'creative';
-    $('inv-title').textContent = kind === 'table' ? 'Crafting Table' : creativePalette ? 'Creative inventory' : 'Inventory';
+    $('inv-title').textContent = { table: 'Crafting Table', chest: 'Chest', furnace: 'Furnace' }[kind] || (creativePalette ? 'Creative inventory' : 'Inventory');
     const top = $('inv-top'); top.textContent = '';
-    refs.craft = []; refs.result = null; refs.palette = [];
-    if (creativePalette) {
+    refs.craft = []; refs.result = null; refs.palette = []; refs.box = []; refs.flame = null; refs.progress = null;
+    if (kind === 'chest') {
+      const grid = document.createElement('div'); grid.className = 'slot-grid';
+      for (let i = 0; i < 27; i++) { const el = slotEl('chest', i); grid.appendChild(el); refs.box.push(el); }
+      top.append(grid);
+    } else if (kind === 'furnace') {
+      // input over a flame gauge over fuel, then a progress arrow, then the output
+      const col = document.createElement('div'); col.className = 'furnace-col';
+      const inp = slotEl('furnace', 0), fuel = slotEl('furnace', 1, 'fuel');
+      refs.flame = document.createElement('div'); refs.flame.className = 'flame'; refs.flame.innerHTML = '<i></i>'; refs.flame.setAttribute('aria-label', 'Fuel burning');
+      col.append(inp, refs.flame, fuel);
+      refs.progress = document.createElement('div'); refs.progress.className = 'smelt-arrow'; refs.progress.innerHTML = '<i></i>'; refs.progress.setAttribute('aria-label', 'Smelting progress');
+      const out = slotEl('furnace', 2, 'result');
+      refs.box = [inp, fuel, out];
+      top.append(col, refs.progress, out);
+    } else if (creativePalette) {
       const pal = document.createElement('div'); pal.className = 'palette';
       IT.all().forEach(d => { const el = slotEl('palette', d.id); fillSlot(el, { id: d.id, count: 1 }); pal.appendChild(el); refs.palette.push(el); });
       const trash = slotEl('trash', 0, 'trash'); trash.textContent = 'Bin'; trash.title = 'Drop an item here to delete it';
@@ -279,7 +293,7 @@
     refs.main = []; refs.hot = [];
     for (let i = 9; i < 36; i++) { const el = slotEl('inv', i); main.appendChild(el); refs.main.push(el); }
     for (let i = 0; i < 9; i++) { const el = slotEl('inv', i); hotRow.appendChild(el); refs.hot.push(el); }
-    $('inv-side').hidden = creativePalette;
+    $('inv-side').hidden = creativePalette || kind === 'chest' || kind === 'furnace';
     U.renderInventory();
   };
   U.renderInventory = function () {
@@ -288,6 +302,12 @@
     refs.hot.forEach((el, k) => { fillSlot(el, st.inv[k]); el.classList.toggle('sel', k === st.sel); });
     refs.craft.forEach((el, k) => fillSlot(el, st.craft.slots[k]));
     if (refs.result) { const r = G.craftResult(); fillSlot(refs.result, r ? r.stack : null); }
+    const box = st.open && st.open.c;
+    if (box) {
+      refs.box.forEach((el, k) => fillSlot(el, box.slots[k]));
+      if (refs.flame) refs.flame.firstChild.style.height = (box.burn > 0 ? Math.max(8, 100 * box.burn / Math.max(1, box.burnMax)) : 0).toFixed(0) + '%';
+      if (refs.progress) refs.progress.firstChild.style.width = (100 * box.cook / BC.smelting.COOK_TICKS).toFixed(0) + '%';
+    }
     renderCursor();
     if (!$('inv-side').hidden) renderRecipes();
   };

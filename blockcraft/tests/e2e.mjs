@@ -421,6 +421,7 @@ class Game {
     if (c === 'result') return '#inv-top .slot.result';
     if (c === 'palette') return `#inv-top .slot[data-c="palette"][data-i="${i}"]`;
     if (c === 'trash') return '#inv-top .slot.trash';
+    if (c === 'chest' || c === 'furnace') return `#inv-top .slot[data-c="${c}"][data-i="${i}"]`;
     throw new Error('bad slot container ' + c);
   }
   clickSlot(c, i, { button = 'left', shift = false } = {}) { return this.page.click(this.slotSel(c, i), { button, modifiers: shift ? ['Shift'] : [] }); }
@@ -1266,6 +1267,110 @@ scenario('I', 'World generation across chunk borders: streaming, meshing, determ
   t.check(fmt(back) === fmt(edits.map(e => e[3])), 'border edits survive chunk unload and regeneration', back);
   c = await g.ev(cmp, CHUNKS);
   t.check(c.mism.length === 0 && c.skipped.length === 0, 'regenerated chunks still match the generator (apart from edits)', c);
+});
+
+scenario('J', 'Stage 2: place a furnace, smelt raw iron with coal, chest storage survives reload, breaking spills contents', async t => {
+  const g = await t.open();
+  await g.boot();
+  await g.createWorld({ name: 'Smelter', seed: '4242' });
+  const spawn = await g.ev(() => BC.game.record.spawn);
+  const gr = await g.ev(([x, z]) => __e2e.findGround(Math.floor(x), Math.floor(z), 0, 40, 3), [spawn[0], spawn[2]]);
+  t.assert(gr, 'no flat ground near spawn');
+  await g.teleport(gr.x, gr.y, gr.z);
+  await g.ev(() => {
+    const st = BC.game.state, mk = BC.items.make;
+    st.inv.fill(null);
+    st.inv[0] = mk('furnace', 1); st.inv[1] = mk('chest', 1); st.inv[2] = mk('raw_iron', 2); st.inv[3] = mk('coal', 1); st.inv[4] = mk('cobblestone', 20);
+    st.inv[5] = mk('wooden_axe', 1); st.sel = 0; BC.game.player.protect = 0;
+  });
+  // furnace
+  const fx = gr.bx + 2, fy = gr.y, fz = gr.bz;
+  let pl = await g.placeOn(fx, fy - 1, fz);
+  t.check(pl.changed && [30, 31].includes(pl.id), 'right-click places a furnace', pl.id);
+  await g.useBlock(fx, fy, fz);
+  let s = await g.ev(() => ({ screen: BC.game.screen, type: BC.game.state.open && BC.game.state.open.c.type, title: document.getElementById('inv-title').textContent }));
+  t.check(s.type === 'furnace' && s.title === 'Furnace', 'right-click opens the furnace window', s);
+  await g.clickSlot('inv', 2, { shift: true });
+  await g.clickSlot('inv', 3, { shift: true });
+  s = await g.ev(() => BC.game.state.open.c.slots.map(x => x && __e2e.key(x.id) + 'x' + x.count));
+  t.check(s[0] === 'raw_ironx2' && s[1] === 'coalx1', 'shift-click sends ore to the input slot and coal to the fuel slot', s);
+  await g.waitGame(10.8);
+  s = await g.ev(() => { const c = BC.game.state.open.c; return { out: c.slots[2] && __e2e.key(c.slots[2].id) + 'x' + c.slots[2].count, burn: c.burn, lit: BC.blocks.DEFS[__e2e.block(...BC.game.state.open.key.split(',').map(Number))].key }; });
+  t.check(s.out === 'iron_ingotx1', 'one raw iron becomes an iron ingot after about 10 s', s);
+  t.check(s.lit.startsWith('lit_furnace'), 'the furnace shows as lit while burning', s.lit);
+  await g.clickSlot('furnace', 2);
+  t.check((await g.snap()).cursor?.key === 'iron_ingot', 'the output slot hands the ingot to the cursor');
+  const dropIn = await g.emptySlot(0);
+  await g.clickSlot('inv', dropIn);
+  await g.closeInventory();
+  // chest
+  await g.press('Digit2');
+  pl = await g.placeOn(fx, fy - 1, fz + 2);
+  t.check(pl.changed && [34, 35].includes(pl.id), 'right-click places a chest', pl.id);
+  const cx = fx, cy = fy, cz = fz + 2;
+  await g.useBlock(cx, cy, cz);
+  await g.clickSlot('inv', 4, { shift: true });
+  s = await g.ev(() => BC.game.state.open.c.slots.filter(Boolean).map(x => __e2e.key(x.id) + 'x' + x.count));
+  t.check(s.length === 1 && s[0] === 'cobblestonex20', 'shift-click moves a stack into the chest', s);
+  await g.closeInventory();
+  // save, reload, reopen
+  const id = await g.ev(() => { BC.game.saveNow(); return BC.game.record.id; });
+  await g.reload();
+  await g.page.click('#btn-singleplayer');
+  await g.page.locator('.world-row', { hasText: 'Smelter' }).click();
+  await g.page.click('#btn-play-world');
+  await g.waitPlaying();
+  s = await g.ev(k => Object.keys(JSON.parse(localStorage.getItem('blockcraft.v2.world.' + k)).containers || {}).length, id);
+  t.check(s === 2, 'both containers are in the save', s);
+  await g.ev(() => { BC.game.player.protect = 0; });
+  await g.useBlock(cx, cy, cz);
+  s = await g.ev(() => BC.game.state.open && BC.game.state.open.c.slots.filter(Boolean).map(x => __e2e.key(x.id) + 'x' + x.count));
+  t.check(s && s[0] === 'cobblestonex20', 'chest contents survive save and reload', s);
+  await g.closeInventory();
+  // break the chest with the axe: contents and the chest drop
+  const axe = await g.slotIndex('wooden_axe');
+  await g.press('Digit' + (axe + 1));
+  await g.mine(cx, cy, cz);
+  await g.waitGame(1.5);
+  s = await g.ev(() => __e2e.totals({ entities: true }));
+  t.check((s.cobblestone || 0) === 20 && (s.chest || 0) === 1, 'breaking the chest drops its 20 cobblestone and the chest itself', s);
+});
+
+scenario('K', 'Developer toolkit: console commands with completion, dev panel buttons, cheats gating', async t => {
+  const g = await t.open();
+  await g.boot();
+  await g.createWorld({ name: 'Dev', seed: '99' });
+  const cmd = async text => { await g.press('KeyT'); await g.waitFor(() => BC.game.screen === 'console' && document.activeElement.id === 'dev-input'); await g.page.keyboard.type(text); await g.press('Enter'); await g.waitPlaying(); };
+  await cmd('/time set noon');
+  let s = await g.ev(() => BC.game.dev.time);
+  t.check(Math.abs(s - 0.25) < 0.01, '/time set noon sets the clock', s);
+  await cmd('/give diamond_pickaxe');
+  await cmd('/gamemode creative');
+  s = await g.ev(() => ({ mode: BC.game.state.mode, dp: __e2e.totals().diamond_pickaxe || 0 }));
+  t.check(s.mode === 'creative' && s.dp === 1, '/give and /gamemode work', s);
+  await cmd('/tp ~ ~15 ~');
+  await cmd('/nonsense');
+  s = await g.ev(() => Array.from(document.querySelectorAll('#dev-log .dev-line')).map(e => e.className.split(' ')[1] + ':' + e.textContent));
+  t.check(s.some(l => l.startsWith('err:Unknown command')), 'unknown commands report an error', s.slice(-4));
+  // tab completion
+  await g.press('Slash'); await g.waitFor(() => BC.game.screen === 'console');
+  await g.page.keyboard.type('daylen'); await g.press('Tab');
+  s = await g.page.inputValue('#dev-input');
+  t.check(s === '/daylength ', 'Tab completes command names', s);
+  await g.page.keyboard.type('2'); await g.press('Enter'); await g.waitPlaying();
+  t.check(Math.abs(await g.ev(() => BC.game.dev.timeScale) - 5) < 1e-9, '/daylength 2 makes days 5x faster');
+  // dev panel
+  await g.press('F4'); await g.waitFor(() => BC.game.screen === 'devpanel');
+  await g.page.click('.dev-tab:has-text("World")');
+  await g.page.click('.dev-btn:has-text("Midnight")');
+  t.check(Math.abs(await g.ev(() => BC.game.dev.time) - 0.75) < 0.01, 'dev panel Midnight button sets the time');
+  await g.press('F4'); await g.waitPlaying();
+  // gating: Developer mode off + world without cheats → commands refused
+  await g.ev(() => BC.game.applySettings({ devMode: false }));
+  await cmd('/time set noon');
+  s = await g.ev(() => ({ t: BC.game.dev.time, last: Array.from(document.querySelectorAll('#dev-log .dev-line')).pop().textContent }));
+  t.check(Math.abs(s.t - 0.75) < 0.02 && /cheats/.test(s.last), 'without cheats or Developer mode, commands are refused', s);
+  await g.ev(() => BC.game.applySettings({ devMode: true }));
 });
 
 main().catch(e => { console.error(e); process.exit(1); });

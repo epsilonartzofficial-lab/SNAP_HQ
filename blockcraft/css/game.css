@@ -272,3 +272,10 @@ kbd { font: 700 11px var(--pixel); color: var(--parchment); background: var(--sl
   .menu-vignette { background: rgba(5, 9, 18, .55); }
 }
 @media (prefers-reduced-motion: reduce) { .menu-item { transition: none; } .menu-item:hover { transform: none; } }
+
+/* furnace window */
+.furnace-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.flame { width: 18px; height: 20px; position: relative; background: rgba(0,0,0,.35); border: 1px solid var(--edge); }
+.flame i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(0deg, #d4481c, #f6a23a 60%, #ffe07a); }
+.smelt-arrow { width: 56px; height: 14px; position: relative; background: rgba(0,0,0,.35); border: 1px solid var(--edge); clip-path: polygon(0 25%, 72% 25%, 72% 0, 100% 50%, 72% 100%, 72% 75%, 0 75%); }
+.smelt-arrow i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #f0f0f0; }
