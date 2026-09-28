@@ -36,7 +36,7 @@
 
   // ---------------------------------------------------------------- screens
   let control = (('ontouchstart' in window) && window.matchMedia('(pointer: coarse)').matches) ? 'touch' : 'lock';
-  let everLocked = false, lockFail = null;
+  let everLocked = false, lockFail = null, skipLockMove = false;
   const locked = () => document.pointerLockElement === $('view');
 
   function setScreen(name) {
@@ -59,7 +59,7 @@
 
   function requestLock(onFail) {
     const cv = $('view');
-    lockFail = onFail;
+    lockFail = onFail; skipLockMove = true;
     if (!cv.requestPointerLock) { lockFail = null; onFail(); return; }
     try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => { if (lockFail) { const f = lockFail; lockFail = null; f(); } }); }
     catch (e) { lockFail = null; onFail(); }
@@ -73,7 +73,7 @@
     });
   }
   document.addEventListener('pointerlockchange', () => {
-    if (locked()) { everLocked = true; lockFail = null; lockedAt = performance.now(); if (screen === 'pause' && rec && !player.dead) setScreen('play'); }
+    if (locked()) { everLocked = true; lockFail = null; lockedAt = performance.now(); skipLockMove = true; if (screen === 'pause' && rec && !player.dead) setScreen('play'); }
     else if (screen === 'play' && control === 'lock') pause();
   });
   document.addEventListener('pointerlockerror', () => { if (lockFail) { const f = lockFail; lockFail = null; f(); } });
@@ -396,7 +396,7 @@
     // fall damage (landing in water cancels it, checked after the move)
     if (LIQUID[W.getBlock(Math.floor(p.x), Math.floor(p.y + 0.1), Math.floor(p.z))]) player.inWater = true;
     if (player.inWater || player.fly) player.fallDist = 0;
-    else if (p.y < y0 && !player.onGround) player.fallDist += y0 - p.y;
+    else if (p.y < y0) player.fallDist += y0 - p.y;   // includes the step that lands
     if (player.onGround) {
       if (player.fallDist > 0 && !creative) { const d = S.fallDamage(player.fallDist); if (d > 0) hurt(d, 'fall'); }
       player.fallDist = 0;
@@ -760,6 +760,8 @@
   window.addEventListener('mousemove', e => {
     if (screen !== 'play') return;
     if (control === 'lock' && locked()) {
+      // Chrome sends one bogus move (minus the cursor position) right after granting the lock; drop it.
+      if (skipLockMove) { skipLockMove = false; return; }
       if (performance.now() - lockedAt < 120 || Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
       look(e.movementX, e.movementY, SENS);
     } else if (control === 'drag' && drag) {
@@ -906,6 +908,8 @@
     U.init(G);
     R.camera.fov = settings.fov; resize();
     const m = store.migrateV1();
+    settings = store.getSettings();
+    R.camera.fov = settings.fov; R.camera.updateProjectionMatrix();
     let meta = `Version ${BC.VERSION}`;
     if (m && m.ok) meta += ' · your earlier world was moved to “My first world”';
     $('title-meta').textContent = meta;
