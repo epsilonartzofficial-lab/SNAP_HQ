@@ -119,18 +119,24 @@ function pageHelpers() {
   // Watch block (x,y,z): __e2e.watch() records the current block synchronously and returns a handle; the handle's
   // promise resolves when the block changes (or after timeoutMs) with the game time and what was dropped.
   // Polls with short timers (between animation frames) so the caller can react before the next frame.
-  H.watchBlock = (x, y, z, timeoutMs) => new Promise(res => {
+  // With `release` (a mouse button number) the button is let go as soon as the block changes, like a quick click:
+  // holding right-click places again every 0.2 s (and Creative breaks again every 0.25 s), faster than a
+  // round trip to the test runner can be guaranteed on a loaded machine.
+  H.watchBlock = (x, y, z, timeoutMs, release) => new Promise(res => {
     const id0 = H.block(x, y, z), t0 = performance.now();
     const f = () => {
       const id = H.block(x, y, z);
-      if (id !== id0) return res({ changed: true, t: H.gameTime, from: id0, id, ents: H.entities(), totals: H.totals() });
+      if (id !== id0) {
+        if (release != null) window.dispatchEvent(new MouseEvent('mouseup', { button: release }));
+        return res({ changed: true, t: H.gameTime, from: id0, id, ents: H.entities(), totals: H.totals() });
+      }
       if (performance.now() - t0 > timeoutMs) return res({ changed: false, t: H.gameTime, from: id0, id });
       setTimeout(f, 5);
     };
     setTimeout(f, 5);
   });
   H.watches = {}; let watchId = 0;
-  H.watch = (x, y, z, timeoutMs) => { const id = ++watchId; H.watches[id] = H.watchBlock(x, y, z, timeoutMs); return id; };
+  H.watch = (x, y, z, timeoutMs, release) => { const id = ++watchId; H.watches[id] = H.watchBlock(x, y, z, timeoutMs, release); return id; };
   H.watchResult = id => H.watches[id].then(r => { delete H.watches[id]; return r; });
   // Resolve with the game time as soon as fn() (source string) is truthy.
   H.until = (src, timeoutMs) => new Promise(res => {
@@ -301,7 +307,8 @@ class Game {
     while (Date.now() - t0 < timeout) {
       const s = await this.ev(() => ({ screen: BC.game.screen, locked: !!document.pointerLockElement,
         ready: !!(BC.game.world && BC.game.record && BC.game.world.chunkReady(BC.game.player.p.x, BC.game.player.p.z)) }));
-      if (s.screen === 'play' && s.ready && (!this.lock || s.locked)) return;
+      // Let a few frames pass: Chrome sends one bogus mousemove right after granting pointer lock.
+      if (s.screen === 'play' && s.ready && (!this.lock || s.locked)) { await this.frames(8); return; }
       if (s.screen === 'pause') { await sleep(1100); await this.page.click('#btn-resume'); }
       await sleep(100);
     }
@@ -316,8 +323,8 @@ class Game {
   }
 
   // Start watching a block before acting on it; `await w.result()` afterwards.
-  async watch(x, y, z, timeoutMs) {
-    const id = await this.ev(([x, y, z, ms]) => __e2e.watch(x, y, z, ms), [x, y, z, timeoutMs]);
+  async watch(x, y, z, timeoutMs, release) {
+    const id = await this.ev(([x, y, z, ms, rel]) => __e2e.watch(x, y, z, ms, rel), [x, y, z, timeoutMs, release == null ? null : release]);
     return { result: () => this.ev(id => __e2e.watchResult(id), id) };
   }
 
@@ -333,7 +340,7 @@ class Game {
   // Hold the left mouse button on a block until it breaks. Returns the game time it took and what dropped.
   async mine(x, y, z, { timeout = 25000 } = {}) {
     const hit = await this.aim(x, y, z);
-    const w = await this.watch(x, y, z, timeout);
+    const w = await this.watch(x, y, z, timeout, 0);
     const t0 = await this.ev(() => __e2e.gameTime);
     await this.page.mouse.down({ button: 'left' });
     let r;
@@ -346,7 +353,7 @@ class Game {
   async placeOn(x, y, z, normal = [0, 1, 0]) {
     await this.aim(x, y, z, normal);
     const [px, py, pz] = [x + normal[0], y + normal[1], z + normal[2]];
-    const w = await this.watch(px, py, pz, 3000);
+    const w = await this.watch(px, py, pz, 3000, 2);
     await this.page.mouse.down({ button: 'right' });
     let r;
     try { r = await w.result(); } finally { await this.page.mouse.up({ button: 'right' }); }
@@ -879,7 +886,7 @@ scenario('E', 'Save/reload keeps blocks, inventory (grid + cursor), stats, posit
   await g.clickSlot('craft', 0, { button: 'right' });
   const pre = await g.ev(() => ({
     totals: __e2e.totals(), invOnly: __e2e.totals({ all: false }), grid: BC.game.state.craft.slots.map(s => s && [__e2e.key(s.id), s.count]).filter(Boolean),
-    cursor: __e2e.snap().cursor, ents: __e2e.entities(), stats: Object.assign({}, BC.game.state.stats), p: BC.game.player.p.toArray(), yaw: BC.game.player.yaw,
+    cursor: __e2e.snap().cursor, ents: __e2e.entities(), stats: Object.assign({}, BC.game.state.stats), p: BC.game.player.p.toArray(), yaw: BC.game.player.yaw, pitch: BC.game.player.pitch,
     pick: __e2e.inv().find(x => x && x.key === 'wooden_pickaxe'), id: BC.game.record.id,
   }));
   t.check(pre.cursor?.key === 'oak_planks' && pre.cursor.count === 9 && pre.grid.length === 2, 'grid holds dirt + 1 plank, cursor holds 9 planks', pre);
@@ -888,13 +895,21 @@ scenario('E', 'Save/reload keeps blocks, inventory (grid + cursor), stats, posit
   await g.shot('before-reload');
 
   await g.reload();
+  const saved = await g.ev(id => JSON.parse(localStorage.getItem('blockcraft.v2.world.' + id)).player, pre.id);
+  t.check(near(saved.yaw, pre.yaw, 1e-9) && near(saved.pitch, pre.pitch, 1e-9), 'facing (yaw/pitch) saved', { pre: [pre.yaw, pre.pitch], saved: [saved.yaw, saved.pitch] });
   await g.page.click('#btn-singleplayer');
   await g.page.waitForSelector('#scr-worlds:not([hidden])');
   const row = g.page.locator('.world-row', { hasText: 'Persist Test' });
   t.check(await row.count() === 1 && (await row.textContent()).includes('seed 777'), 'world list shows the saved world with its seed');
   await row.click();
+  // Chrome sends one bogus mousemove (delta = minus the cursor position) right after granting pointer lock; the game
+  // ignores moves only for 120 ms after the lock. Simulate a slow first frame (as on a slow device while chunks mesh)
+  // with a 250 ms task right after the lock is granted: the camera must still face the saved direction.
+  await g.ev(() => document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement) { const t0 = performance.now(); while (performance.now() - t0 < 250); } }, { once: true }));
   await g.page.click('#btn-play-world');
   await g.waitPlaying();
+  const look = await g.ev(() => [BC.game.player.yaw, BC.game.player.pitch]);
+  t.check(near(look[0], saved.yaw, 1e-6) && near(look[1], saved.pitch, 1e-6), 'camera keeps the saved facing when pointer lock is granted during a slow frame', { saved: [saved.yaw, saved.pitch], live: look });
   const post = await g.ev(b => ({
     totals: __e2e.totals(), cursor: BC.game.state.cursor, grid: BC.game.state.craft.slots.filter(Boolean).length, ents: __e2e.entities(), stats: Object.assign({}, BC.game.state.stats),
     p: BC.game.player.p.toArray(), yaw: BC.game.player.yaw, pick: __e2e.inv().find(x => x && x.key === 'wooden_pickaxe'), id: BC.game.record.id,
@@ -908,7 +923,6 @@ scenario('E', 'Save/reload keeps blocks, inventory (grid + cursor), stats, posit
   t.check(post.stats.health === 15 && post.stats.food === 17, 'health and food persisted', post.stats);
   t.check(post.hud.hearts.filter(k => k === 'heart_full').length === 7 && post.hud.hearts.filter(k => k === 'heart_half').length === 1, 'HUD shows 7.5 hearts after reload', post.hud.hearts);
   t.check(post.p.every((v, i) => near(v, pre.p[i], 0.01)), 'position persisted', { before: pre.p, after: post.p });
-  t.check(near(post.yaw, pre.yaw, 1e-6), 'facing (yaw) persisted', { before: pre.yaw, after: post.yaw });
   const sig = es => es.map(e => `${e.key}:${e.count}@${e.x.toFixed(2)},${e.y.toFixed(2)},${e.z.toFixed(2)}`);
   t.check(sameEntities(pre.ents, post.ents), 'dropped item entities persisted in place', { before: sig(pre.ents), after: sig(post.ents) });
 
