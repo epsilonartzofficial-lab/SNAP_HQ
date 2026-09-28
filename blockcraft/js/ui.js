@@ -8,8 +8,9 @@
   const U = BC.ui = {};
   let G = null;
 
-  const SCREENS = ['title', 'worlds', 'create', 'transfer', 'loading', 'pause', 'settings', 'death', 'inventory'];
-  U.show = function (name) { for (const s of SCREENS) $('scr-' + s).hidden = s !== name; hover = null; if (name !== 'inventory') { hideTooltip(); $('cursor-stack').hidden = true; } };
+  const SCREENS = ['title', 'worlds', 'create', 'transfer', 'loading', 'pause', 'settings', 'death', 'inventory', 'console', 'devpanel'];
+  const screenEl = s => document.getElementById('scr-' + s);
+  U.show = function (name) { for (const s of SCREENS) { const el = screenEl(s); if (el) el.hidden = s !== name; } hover = null; if (name !== 'inventory') { hideTooltip(); $('cursor-stack').hidden = true; } };
 
   // UI surfaces are painted with the game's own generated textures.
   const texCSS = document.createElement('style');
@@ -210,20 +211,33 @@
     $('set-fov').value = s.fov; $('set-fov-out').textContent = s.fov + '°';
     $('set-rd').value = String(s.renderDistance);
     $('set-invert').checked = !!s.invertY; $('set-motion').checked = !!s.reduceMotion; $('set-tilt').checked = !!s.damageTilt; $('set-coords').checked = !!s.showCoords;
+    $('set-dev').checked = !!s.devMode;
   };
   function readSettings() {
     return {
       sensitivity: +$('set-sens').value, fov: +$('set-fov').value, renderDistance: +$('set-rd').value,
-      invertY: $('set-invert').checked, reduceMotion: $('set-motion').checked, damageTilt: $('set-tilt').checked, showCoords: $('set-coords').checked,
+      invertY: $('set-invert').checked, reduceMotion: $('set-motion').checked, damageTilt: $('set-tilt').checked, showCoords: $('set-coords').checked, devMode: $('set-dev').checked,
     };
   }
-  for (const id of ['set-sens', 'set-fov', 'set-rd', 'set-invert', 'set-motion', 'set-tilt', 'set-coords']) {
+  for (const id of ['set-sens', 'set-fov', 'set-rd', 'set-invert', 'set-motion', 'set-tilt', 'set-coords', 'set-dev']) {
     $(id).addEventListener('input', () => { const s = readSettings(); U.loadSettings(s); G.applySettings(s); });
   }
   $('btn-settings-done').addEventListener('click', () => G.closeSettings());
 
   // ---------------------------------------------------------------- title / pause / death buttons
   $('btn-singleplayer').addEventListener('click', () => G.setScreen('worlds'));
+  $('btn-news-play').addEventListener('click', () => G.setScreen('worlds'));
+  $('btn-news').addEventListener('click', () => G.setScreen('title'));
+  // Main menu shell: visible on every out-of-game screen, with the matching navigation item marked.
+  U.menu = function (visible, screen) {
+    const shell = $('menu-shell');
+    shell.hidden = !visible;
+    document.getElementById('app').classList.toggle('in-menu', visible);
+    for (const b of shell.querySelectorAll('.menu-item')) {
+      const on = visible && b.dataset.for.split(' ').includes(screen);
+      b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    }
+  };
   $('btn-title-settings').addEventListener('click', () => G.openSettings());
   $('btn-resume').addEventListener('click', () => G.resume());
   $('btn-pause-settings').addEventListener('click', () => G.openSettings());

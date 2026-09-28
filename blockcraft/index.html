@@ -6,7 +6,7 @@
 <title>Blockcraft</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Sans+Condensed:wght@400;600&family=Cinzel:wght@600;800&display=swap">
 <link rel="stylesheet" href="css/game.css">
 </head>
 <body>
@@ -44,14 +44,39 @@
   <button class="btn small" id="menu-btn" type="button" hidden>Menu</button>
 
   <!-- title -->
-  <section id="scr-title" class="slab tex-stone corner" aria-labelledby="wordmark">
-    <h1 class="wordmark" id="wordmark">BLOCK<span>CRAFT</span></h1>
-    <p class="lede">An endless block world grown from a seed. Punch a tree, craft your first tools, and survive the night, or build freely in Creative.</p>
-    <div class="row">
-      <button class="btn tex-grass" id="btn-singleplayer" type="button">Singleplayer</button>
-      <button class="btn small tex-planks" id="btn-title-settings" type="button">Settings</button>
+  <!-- main menu shell: logo and navigation on the left, content panels on the right -->
+  <div id="menu-shell" hidden>
+    <div class="menu-vignette" aria-hidden="true"></div>
+    <header class="menu-logo">
+      <h1 class="wordmark" id="wordmark">BLOCK<span>CRAFT</span></h1>
+      <p class="menu-tag">Survive · Build · Explore</p>
+    </header>
+    <nav class="menu-nav" aria-label="Main menu">
+      <button type="button" class="menu-item" id="btn-singleplayer" data-for="worlds create transfer loading">Play</button>
+      <button type="button" class="menu-item" id="btn-title-settings" data-for="settings">Settings</button>
+      <button type="button" class="menu-item" id="btn-news" data-for="title">What's new</button>
+    </nav>
+    <footer class="menu-foot"><span id="title-meta"></span></footer>
+  </div>
+
+  <section id="scr-title" class="menu-panel news" aria-labelledby="news-h">
+    <p class="kicker">Development build</p>
+    <h2 id="news-h">What's new</h2>
+    <div class="news-list">
+      <article>
+        <h3>Survival</h3>
+        <p>Punch trees, craft planks, sticks and a crafting table, then wooden and stone tools. Mining takes time and needs the right tool. Watch your health, hunger and air, and get your items back after you die.</p>
+      </article>
+      <article>
+        <h3>Developer toolkit</h3>
+        <p>Press <kbd>/</kbd> or <kbd>T</kbd> in a world for commands and <kbd>F4</kbd> for the dev panel: time of day, teleport, find caves, give items, god mode, no-clip, chunk borders and an inspector. Turn it off under Settings.</p>
+      </article>
+      <article>
+        <h3>In development</h3>
+        <p>Light and torches, a new biome world generator, furnaces and chests, then creatures and combat. See the roadmap in the project docs.</p>
+      </article>
     </div>
-    <p class="meta" id="title-meta"></p>
+    <button class="btn menu-cta" id="btn-news-play" type="button">Play</button>
   </section>
 
   <!-- world list -->
@@ -139,6 +164,7 @@
         <label class="check" for="set-motion"><input type="checkbox" id="set-motion"> Reduce camera motion</label>
         <label class="check" for="set-tilt"><input type="checkbox" id="set-tilt"> Tilt camera when hurt</label>
         <label class="check" for="set-coords"><input type="checkbox" id="set-coords"> Show coordinates</label>
+        <label class="check" for="set-dev"><input type="checkbox" id="set-dev"> Developer mode (console and dev panel in every world)</label>
       </div>
     </div>
     <details class="controls"><summary>Controls</summary>
@@ -152,7 +178,8 @@
         <dt><kbd>E</kbd></dt><dd>Inventory and crafting</dd>
         <dt><kbd>Q</kbd></dt><dd>Drop one item · <kbd>Shift</kbd>+<kbd>Q</kbd> drops the stack</dd>
         <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Hotbar · scroll wheel works too</dd>
-        <dt><kbd>F1</kbd> <kbd>F3</kbd></dt><dd>Hide HUD · debug info</dd>
+        <dt><kbd>F1</kbd> <kbd>F3</kbd></dt><dd>Hide HUD · debug info (on some laptops hold <kbd>Fn</kbd>)</dd>
+        <dt><kbd>/</kbd> <kbd>T</kbd> <kbd>F4</kbd></dt><dd>Command console · dev panel (Developer mode or cheats)</dd>
         <dt>Inventory</dt><dd>Click to pick up or place · right-click to split or place one · Shift-click to move · 1–9 swaps with hotbar · Q drops</dd>
       </dl>
     </details>

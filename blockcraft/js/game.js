@@ -25,6 +25,7 @@
   const player = {
     p: new THREE.Vector3(), v: new THREE.Vector3(), yaw: 0, pitch: 0, onGround: false, fly: false, sneaking: false, sprinting: false,
     inWater: false, eyeInWater: false, fallDist: 0, dead: false, deathMsg: '', height: STAND_H, protect: 0,
+    god: false, noclip: false, speedMul: 1, flyMul: 1,   // developer toolkit switches (not saved)
   };
   let W = null, E = null, rec = null;          // rec === null means the title-screen backdrop world
   let screen = 'title', settingsReturn = 'title';
@@ -54,6 +55,7 @@
     $('coords').hidden = !(playing && settings.showCoords);
     $('debug').hidden = !(playing && debugOn);
     if (name !== 'play' && locked()) document.exitPointerLock();
+    U.menu(!rec && ['title', 'worlds', 'create', 'transfer', 'settings', 'loading'].includes(name), name);
     if (name === 'worlds') U.renderWorlds(store.listWorlds());
     if (name === 'create') U.resetCreate();
     if (name !== 'pause') $('pause-hint').hidden = true;
@@ -82,7 +84,7 @@
   document.addEventListener('pointerlockerror', () => { if (lockFail) { const f = lockFail; lockFail = null; f(); } });
 
   function pauseInfo() {
-    return { cheats: rec && rec.cheats, mode: state.mode, quitArmed, meta: rec ? `${rec.name} · ${state.mode === 'creative' ? 'Creative' : 'Survival'} · ${S.DIFFICULTY[rec.difficulty]} · seed ${rec.seed}` : '' };
+    return { cheats: rec && (rec.cheats || settings.devMode), mode: state.mode, quitArmed, meta: rec ? `${rec.name} · ${state.mode === 'creative' ? 'Creative' : 'Survival'} · ${S.DIFFICULTY[rec.difficulty]} · seed ${rec.seed}` : '' };
   }
   function pause() {
     if (screen !== 'play') return;
@@ -246,8 +248,12 @@
     setScreen('title');
   };
   G.switchMode = function () {
-    if (!rec || !rec.cheats) return;
-    state.mode = state.mode === 'creative' ? 'survival' : 'creative';
+    if (!rec || !(rec.cheats || settings.devMode)) return;
+    G.setMode(state.mode === 'creative' ? 'survival' : 'creative');
+  };
+  G.setMode = function (mode) {
+    if (!rec || (mode !== 'creative' && mode !== 'survival')) return;
+    state.mode = mode;
     rec.mode = state.mode;
     if (state.mode === 'survival') player.fly = false;
     player.fallDist = 0;
@@ -260,8 +266,9 @@
   let hurtTilt = 0;
   function hurt(amount, cause) {
     if (player.dead || !rec) return;
-    if (state.mode === 'creative' && cause !== 'void') return;
-    if (player.protect > 0 && cause !== 'void') return;   // 3 s of protection after joining or respawning
+    const forced = cause === 'kill' || cause === 'void';
+    if (state.mode === 'creative' && !forced) return;
+    if ((player.protect > 0 || player.god) && !forced) return;   // spawn protection (3 s) or dev god mode
     const dealt = S.applyDamage(state.stats, amount, S.DAMAGE_EXHAUSTION[cause] != null ? S.DAMAGE_EXHAUSTION[cause] : S.EXHAUST.damage);
     if (dealt <= 0) return;
     hurtTilt = 0.35;
@@ -304,6 +311,7 @@
   function moveAxis(a, d) {
     if (!d) return false;
     const p = player.p, h = player.height; p[AX[a]] += d;
+    if (player.noclip) return false;   // dev: pass through blocks
     const x0 = Math.floor(p.x - HW), x1 = Math.floor(p.x + HW - 1e-6);
     const y0 = Math.floor(p.y), y1 = Math.floor(p.y + h - 1e-6);
     const z0 = Math.floor(p.z - HW), z1 = Math.floor(p.z + HW - 1e-6);
@@ -348,7 +356,8 @@
     const p = player.p, v = player.v, creative = state.mode === 'creative';
     if (!W.chunkReady(p.x, p.z)) { v.set(0, 0, 0); return; }
     const inp = allowInput ? readInput() : { fwd: 0, str: 0, jump: false, shift: false, down: false, sprint: false };
-    if (!creative) player.fly = false;
+    if (!creative && !player.noclip) player.fly = false;
+    if (player.noclip) player.fly = true;
     let fwd = inp.fwd, str = inp.str;
     const len = Math.hypot(fwd, str); if (len > 1) { fwd /= len; str /= len; }
 
@@ -363,11 +372,11 @@
     const wx = -s * fwd + c * str, wz = -c * fwd - s * str;
     let jumped = false;
     if (player.fly) {
-      const sp = player.sprinting ? 21.6 : 10.9, e = Math.min(1, dt * 10);
+      const sp = (player.sprinting ? 21.6 : 10.9) * player.flyMul, e = Math.min(1, dt * 10);
       v.x += (wx * sp - v.x) * e; v.z += (wz * sp - v.z) * e;
       v.y += (((inp.jump ? 1 : 0) - (inp.down ? 1 : 0)) * 7.5 - v.y) * e;
     } else {
-      let sp = player.inWater ? 2.6 : player.sprinting ? 5.612 : 4.317;
+      let sp = (player.inWater ? 2.6 : player.sprinting ? 5.612 : 4.317) * player.speedMul;
       if (sneak) sp *= 0.3;
       if (state.eating > 0) sp *= 0.2;
       const acc = player.onGround ? 14 : player.inWater ? 6 : 3.5, e = Math.min(1, acc * dt);
@@ -399,7 +408,7 @@
     }
     if (wall) player.sprinting = false;
     if (player.inWater && inp.jump && wall) v.y = 5.2;
-    if (player.fly && player.onGround && !inp.jump) player.fly = false;
+    if (player.fly && player.onGround && !inp.jump && !player.noclip) player.fly = false;
 
     // fall damage (landing in water cancels it, checked after the move)
     if (LIQUID[W.getBlock(Math.floor(p.x), Math.floor(p.y + 0.1), Math.floor(p.z))]) player.inWater = true;
@@ -697,6 +706,39 @@
     return left;
   }
 
+  // ---------------------------------------------------------------- developer API (devtools.js)
+  const devAllowed = () => !!rec && (rec.cheats || settings.devMode);
+  G.dev = {
+    allowed: devAllowed,
+    timeScale: 1, freezeTime: false,
+    get time() { return dayTime; }, set time(t) { dayTime = ((t % 1) + 1) % 1; },
+    get settings() { return settings; },
+    teleport(x, y, z) {
+      if (!rec) return false;
+      W.prime(x, z);
+      player.p.set(x, y, z); player.v.set(0, 0, 0); player.fallDist = 0;
+      return true;
+    },
+    give(stack) {
+      if (!rec || !stack) return 0;
+      const n = stack.count, left = INV.addPlayer(state.inv, stack, state.sel);
+      if (left > 0) E.toss(Object.assign({}, stack, { count: left }), eyePos().clone(), lookDir(), 0.5);
+      if (screen === 'inventory') U.renderInventory();
+      return n;
+    },
+    heal() { state.stats.health = 20; state.stats.air = S.MAX_AIR; },
+    feed() { state.stats.food = 20; state.stats.saturation = 20; state.stats.exhaustion = 0; },
+    kill() { hurt(1e6, 'kill'); },
+    clearInventory() { state.inv = INV.empty(36); state.cursor = null; },
+    setSpawn(x, y, z) { if (rec) rec.spawn = [x, y, z]; },
+    surfaceY: (x, z) => W.surfaceY(Math.floor(x), Math.floor(z)),
+    eye: () => eyePos().clone(), lookDir,
+    releaseInputs: () => releaseInputs(),
+    resume: () => startPlaying(),
+    pauseInfo: () => pauseInfo(),
+    save: () => saveNow(),
+  };
+
   // ---------------------------------------------------------------- input
   const SENS = 0.0024;
   let lockedAt = 0;
@@ -861,7 +903,7 @@
       if (screen === 'play' && !player.dead) interact(dt);
       else { mining = null; R.setCrack(null, -1); R.setHighlight(null); }
       E.update(dt, { x: player.p.x, y: player.p.y, z: player.p.z, alive: !player.dead }, pickup);
-      dayTime = (dayTime + dt / DAY_LEN) % 1;
+      if (!G.dev.freezeTime) dayTime = (dayTime + dt / DAY_LEN * G.dev.timeScale) % 1;
       if (player.protect > 0) player.protect -= dt;
       if (swingT >= 0) { swingT += dt / 0.3; if (swingT >= 1) swingT = -1; }
       hurtTilt = Math.max(0, hurtTilt - dt);

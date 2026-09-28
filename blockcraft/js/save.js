@@ -12,7 +12,7 @@
   const KEY_V1 = 'blockcraft.save.v1';
   const MODES = ['survival', 'creative'];
 
-  const DEFAULT_SETTINGS = { sensitivity: 1, invertY: false, fov: 75, renderDistance: 6, reduceMotion: false, damageTilt: true, showCoords: false };
+  const DEFAULT_SETTINGS = { sensitivity: 1, invertY: false, fov: 75, renderDistance: 6, reduceMotion: false, damageTilt: true, showCoords: false, devMode: true, consoleHistory: [] };
 
   function freshIndex() { return { v: 2, worlds: [], settings: Object.assign({}, DEFAULT_SETTINGS), migratedV1: false }; }
   function newId() { return 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
