@@ -90,15 +90,18 @@
         }
         if (render) {
           if (!e.mesh) e.mesh = render.itemMesh(e.id);
-          const d = IT.get(e.id), lift = d.kind === 'block' ? 0.14 : 0.22;
+          const d = IT.get(e.id), lift = d.kind === 'block' && BC.blocks.SHAPE[d.block] === 'cube' ? 0.14 : 0.22;   // flat sprites stand taller
           e.mesh.position.set(e.x, e.y + lift + Math.sin(e.age * 2.2 + e.phase) * 0.06, e.z);
           e.mesh.rotation.y = e.age * 1.3 + e.phase;
+          if (render.lightMesh) render.lightMesh(e.mesh, e.x, e.y + 0.2, e.z);   // lit like the world around it
         }
       }
       if (mergeT > 0.5) { mergeT = 0; mergeNearby(); }
     }
 
-    const pack = () => list.map(e => [e.id, e.count, e.dmg || 0, +e.x.toFixed(2), +e.y.toFixed(2), +e.z.toFixed(2), Math.round(e.age), +Math.max(0, e.delay).toFixed(2)]);
+    // Saved stacks, plus falling blocks that would drop as an item where they land (see world.packFallingItems).
+    const pack = () => list.map(e => [e.id, e.count, e.dmg || 0, +e.x.toFixed(2), +e.y.toFixed(2), +e.z.toFixed(2), Math.round(e.age), +Math.max(0, e.delay).toFixed(2)])
+      .concat(world.packFallingItems ? world.packFallingItems() : []);
     function load(arr) {
       for (const a of arr || []) {
         const d = IT.get(a[0]); if (!d || !(a[1] > 0)) continue;
