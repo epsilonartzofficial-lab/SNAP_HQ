@@ -1,0 +1,12 @@
+{
+  "name": "blockcraft",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Blockcraft, a browser voxel game that runs straight from index.html; tools/build.mjs bundles it into single-file builds in dist/.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node tests/unit.mjs",
+    "e2e": "node tests/e2e.mjs",
+    "serve": "npx --yes http-server -p 8080 -c-1 ."
+  }
+}
