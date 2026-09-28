@@ -29,26 +29,40 @@
     { key: 'crafting_table', name: 'Crafting Table', tex: { top: 'table_top', side: 'table_side', bottom: 'planks', front: 'table_front' }, hardness: 2.5, tool: 'axe', use: 'crafting' },
   ];
 
-  const B = {};
+  const B = { AIR: 0 };
   const BY_KEY = {};
-  DEFS.forEach((d, id) => { if (!d) return; d.id = id; B[d.key.toUpperCase()] = id; BY_KEY[d.key] = d; });
-  B.AIR = 0;
+  // Per-id lookup tables used in hot loops (meshing, physics, lighting).
+  const SOLID = new Uint8Array(256), OPAQUE = new Uint8Array(256), LIQUID = new Uint8Array(256), LIGHT = new Uint8Array(256);
+  const SHAPE = [];   // 'cube' (default), 'cross' (plants), 'torch'
+  function applyProps(id, d) {
+    const shaped = d.shape && d.shape !== 'cube';
+    SOLID[id] = d.liquid || d.solid === false ? 0 : 1;
+    OPAQUE[id] = d.liquid || d.cutout || shaped ? 0 : 1;
+    LIQUID[id] = d.liquid ? 1 : 0;
+    LIGHT[id] = Math.max(0, Math.min(15, d.light | 0));
+    SHAPE[id] = d.shape || 'cube';
+  }
+  // Add a block. Id ranges are reserved per workstream (see docs/ROADMAP.md, "Id ranges").
+  function register(id, def) {
+    if (!Number.isInteger(id) || id < 1 || id > 255) throw new Error('Block id out of range: ' + id);
+    if (DEFS[id]) throw new Error('Block id ' + id + ' is already used by ' + DEFS[id].key);
+    if (BY_KEY[def.key]) throw new Error('Block key already registered: ' + def.key);
+    def.id = id; DEFS[id] = def; B[def.key.toUpperCase()] = id; BY_KEY[def.key] = def; applyProps(id, def);
+    return id;
+  }
+  DEFS.forEach((d, id) => { if (!d) return; d.id = id; B[d.key.toUpperCase()] = id; BY_KEY[d.key] = d; applyProps(id, d); });
+  const ids = () => DEFS.map((d, id) => (d ? id : 0)).filter(Boolean);
+  const exists = id => Number.isInteger(id) && id > 0 && !!DEFS[id];
   // Short aliases used by the v1 world generator.
   Object.assign(B, { GRASS: B.GRASS_BLOCK, COBBLE: B.COBBLESTONE, LOG: B.OAK_LOG, LEAVES: B.OAK_LEAVES, PLANKS: B.OAK_PLANKS,
     SNOW: B.SNOWY_GRASS_BLOCK, BRICK: B.BRICKS, COAL: B.COAL_ORE, IRON: B.IRON_ORE, GOLD: B.GOLD_ORE, DIAMOND: B.DIAMOND_ORE });
 
-  const NB = DEFS.length;
-  const SOLID = new Uint8Array(256), OPAQUE = new Uint8Array(256), LIQUID = new Uint8Array(256);
-  for (let id = 1; id < NB; id++) {
-    const d = DEFS[id];
-    SOLID[id] = d.liquid ? 0 : 1;
-    OPAQUE[id] = d.liquid || d.cutout ? 0 : 1;
-    LIQUID[id] = d.liquid ? 1 : 0;
-  }
   // per block: tile names for [left(-x), right(+x), bottom, top, back(-z), front(+z)]
   function faceTiles(id) {
     const d = DEFS[id];
     const t = typeof d.tex === 'string' ? { top: d.tex, side: d.tex, bottom: d.tex } : d.tex;
+    if (!t.side) t.side = t.top;
+    if (!t.bottom) t.bottom = t.top;
     const s = t.side, f = t.front || s;
     return [s, s, t.bottom, t.top, f, f];
   }
@@ -87,5 +101,5 @@
     return [{ key: d.drop || d.key, count: 1 }];
   }
 
-  BC.blocks = { DEFS, B, BY_KEY, NB, SOLID, OPAQUE, LIQUID, faceTiles, breakInfo, drops };
+  BC.blocks = { DEFS, B, BY_KEY, SOLID, OPAQUE, LIQUID, LIGHT, SHAPE, register, ids, exists, faceTiles, breakInfo, drops, get NB() { return DEFS.length; } };
 })(typeof window !== 'undefined' ? window : globalThis);

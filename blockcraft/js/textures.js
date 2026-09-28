@@ -4,15 +4,18 @@
 (function (root) {
   const BC = root.BC;
   const { mulberry32, hashStr, clamp } = BC.util;
-  const { DEFS, NB, LIQUID, faceTiles } = BC.blocks;
+  const { DEFS, LIQUID, faceTiles } = BC.blocks;
 
-  const TS = 16, ATW = 8, ATH = 8;
+  // 16x16 tiles of 16 px. Extension files (tex-*.js) paint more tiles, then game boot calls finalize().
+  const TS = 16, ATW = 16, ATH = 16;
   const atlas = document.createElement('canvas');
   atlas.width = ATW * TS; atlas.height = ATH * TS;
   const actx = atlas.getContext('2d');
   const TILE = {};
   let tileN = 0;
   function paint(name, fn) {
+    if (TILE[name] != null) throw new Error('Tile already painted: ' + name);
+    if (tileN >= ATW * ATH) throw new Error('Texture atlas is full');
     const i = tileN++; TILE[name] = i;
     const ox = (i % ATW) * TS, oy = Math.floor(i / ATW) * TS;
     const r = mulberry32(hashStr(name));
@@ -169,8 +172,7 @@
     });
   }
 
-  const BTEX = [];
-  for (let id = 1; id < NB; id++) BTEX[id] = faceTiles(id).map(n => { if (TILE[n] == null) throw new Error('missing tile ' + n); return TILE[n]; });
+  const BTEX = [];   // filled by finalize()
 
   // ---- item sprites (16x16 pixel art from character maps)
   const SPRITES = {
@@ -202,7 +204,7 @@
       '................', '................', '........d.......', '.......d.gg.....', '....kkkdkggk....', '...kmmmmmmmk....', '..kmllmmmmmmk...', '..kmlmmmmmmmk...',
       '..kmmmmmmmmMk...', '..kmmmmmmmmMk...', '...kmmmmmmMk....', '...kmmMMmmMk....', '....kkk.kkk.....', '................', '................', '................'],
   };
-  const SIW = 16, SIH = 4;
+  const SIW = 16, SIH = 8;
   const itemAtlas = document.createElement('canvas');
   itemAtlas.width = SIW * TS; itemAtlas.height = SIH * TS;
   const ictx = itemAtlas.getContext('2d');
@@ -210,6 +212,8 @@
   let spriteN = 0;
   const shade = (c, k) => c.map(v => clamp(Math.round(v + k), 0, 255));
   function drawSprite(name, map, mat) {
+    if (SPRITE[name] != null) throw new Error('Sprite already drawn: ' + name);
+    if (spriteN >= SIW * SIH) throw new Error('Item sprite atlas is full');
     const i = spriteN++; SPRITE[name] = i;
     const ox = (i % SIW) * TS, oy = Math.floor(i / SIW) * TS;
     const pal = { k: [34, 26, 22], w: [140, 104, 58], d: [98, 70, 38], g: [70, 150, 50], m: mat, l: shade(mat, 48), M: shade(mat, -42) };
@@ -227,7 +231,8 @@
   drawSprite('diamond_gem', SPRITES.gem, [86, 214, 206]);
   drawSprite('apple', SPRITES.apple, [212, 40, 40]);
   const IT = BC.items;
-  for (const d of IT.all()) if (d.tool) drawSprite(d.key, SPRITES[d.tool.type], d.tint);
+  // Public helpers for extension files: a character-map sprite with a material colour.
+  const sprite = (name, map, mat) => drawSprite(name, map, mat);
   function spriteIndex(itemId) { const d = IT.get(itemId); if (!d || d.kind === 'block') return -1; const k = d.tool ? d.key : d.sprite; return SPRITE[k]; }
 
   // ---- icons
@@ -295,7 +300,15 @@
 
   // Average colour per atlas tile, for break particles.
   const TILE_AVG = [];
-  {
+  let finalized = false;
+  // Called once at boot, after every tex-*.js file has painted: resolves block faces and tool sprites.
+  function finalize() {
+    if (finalized) return; finalized = true;
+    for (const id of BC.blocks.ids()) BTEX[id] = faceTiles(id).map(n => { if (TILE[n] == null) throw new Error('Missing tile "' + n + '" for block ' + DEFS[id].key); return TILE[n]; });
+    for (const d of IT.all()) {
+      if (d.tool && SPRITE[d.key] == null) drawSprite(d.key, SPRITES[d.tool.type] || SPRITES.stick, d.tint);
+      if (d.kind !== 'block' && !d.tool && SPRITE[d.sprite] == null) throw new Error('Missing sprite "' + d.sprite + '" for item ' + d.key);
+    }
     const img = actx.getImageData(0, 0, atlas.width, atlas.height).data;
     for (let i = 0; i < tileN; i++) {
       const ox = (i % ATW) * TS, oy = Math.floor(i / ATW) * TS; let r = 0, g = 0, b = 0, n = 0;
@@ -304,5 +317,5 @@
     }
   }
 
-  BC.tex = { TS, ATW, ATH, SIW, SIH, atlas, itemAtlas, TILE, BTEX, SPRITE, spriteIndex, iconURL, tileURL, HUD, TILE_AVG };
+  BC.tex = { TS, ATW, ATH, SIW, SIH, atlas, itemAtlas, TILE, BTEX, SPRITE, SPRITES, paint, sprite, jit, each, dirtTex, stoneTex, oreTex, planksTex, spriteIndex, iconURL, tileURL, HUD, TILE_AVG, finalize };
 })(window);

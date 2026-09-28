@@ -63,6 +63,22 @@ Creative worlds keep flight, instant breaking and the full item palette. Surviva
 - Touch: joystick, look drag, jump, mine, use, sneak, drop, inventory, with long-press to split stacks.
 - The terrain generator is byte-identical to v0.1 for the same seed (golden chunk hashes).
 
+## Stage 1.5: Developer toolkit and main menu (owner requests)
+
+**Player scenario.** While playtesting, press `/` (or T) to open a command console with tab completion, or F4 for
+a developer panel. Change the time of day and day length, switch game mode, teleport by coordinates, find the
+nearest cave or biome, give yourself any item, heal, feed, fly faster, pass through walls, see ores through stone,
+show chunk borders and inspect the block and biome you look at. Later stages add their own commands, such as
+spawning creatures and tuning spawn rates per biome. The title screen follows a Hytale-like layout: a live
+world panorama, logo, a vertical menu on the left and content panels on the right.
+
+**Acceptance checks:** every command validates its input and reports errors in the console; commands work only
+in worlds with cheats on, or everywhere with Developer mode enabled in Settings; console history persists between
+sessions; the dev panel and console are keyboard and touch usable.
+
+**Later owner requests (not scheduled yet):** character creation, a new game name, and a desktop build (for
+example Electron or Tauri) where Ctrl-to-sprint can work because the browser no longer owns Ctrl+W.
+
 ## Stage 2: Furnace, light and storage
 
 **Player scenario.** On the first evening, mine coal, craft torches and light a shelter. Build a furnace, smelt
@@ -134,3 +150,17 @@ portal, and an original boss encounter.
 
 Chunk generation and meshing in Web Workers, greedy or merged meshing, a larger world height, entity caps, and
 profiling on low-end and mobile hardware.
+
+## Id ranges
+
+Block and item ids are stored in saves and never change. Each workstream adds content in its own files and
+range so parallel work cannot collide.
+
+| Range | Blocks | Items |
+|---|---|---|
+| Stage 1 | 1–20 | 256–263, tools 300–349 (hoe and shears slots reserved) |
+| World systems: torch, sapling, falling blocks, plants (`blocks-world.js`) | 21–29 | 280–299 |
+| Stage 2 utility: furnace, chest, bed (`blocks-stage2.js`, `items-stage2.js`) | 30–39 | 264–279 |
+| Biomes for generator v2 (`blocks-biomes.js`) | 40–119 | 400–449 |
+| Creatures and combat | 120–159 | 350–399 |
+| Future | 160–255 | 450+ |

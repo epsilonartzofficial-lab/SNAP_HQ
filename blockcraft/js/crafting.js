@@ -5,8 +5,21 @@
   const IT = BC.items;
 
   const RECIPES = [];
-  function shaped(pattern, key, out, count) { RECIPES.push({ type: 'shaped', pattern, key, out, count: count || 1 }); }
-  function shapeless(ingredients, out, count) { RECIPES.push({ type: 'shapeless', ingredients, out, count: count || 1 }); }
+  // Recipes are resolved to item ids as they are added, so an unknown item name fails loudly at load time.
+  function resolve(r) {
+    r.outId = IT.idOf(r.out);
+    if (r.type === 'shaped') {
+      r.w = Math.max(...r.pattern.map(p => p.length)); r.h = r.pattern.length;
+      r.cells = [];
+      for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { const ch = r.pattern[y][x] || ' '; r.cells.push(ch === ' ' ? 0 : IT.idOf(r.key[ch])); }
+    } else r.ids = r.ingredients.map(IT.idOf).sort((a, b) => a - b);
+    r.needs = {};
+    for (const id of (r.cells || r.ids)) if (id) r.needs[id] = (r.needs[id] || 0) + 1;
+    RECIPES.push(r);
+    return r;
+  }
+  function shaped(pattern, key, out, count) { return resolve({ type: 'shaped', pattern, key, out, count: count || 1 }); }
+  function shapeless(ingredients, out, count) { return resolve({ type: 'shapeless', ingredients, out, count: count || 1 }); }
 
   shapeless(['oak_log'], 'oak_planks', 4);
   shaped(['#', '#'], { '#': 'oak_planks' }, 'stick', 4);
@@ -21,17 +34,6 @@
     shaped(['X', 'X', '#'], { X: head, '#': 'stick' }, `${mat}_sword`);
   }
 
-  // Resolve item keys to ids once; fail loudly at load if a recipe names an unknown item.
-  for (const r of RECIPES) {
-    r.outId = IT.idOf(r.out);
-    if (r.type === 'shaped') {
-      r.w = Math.max(...r.pattern.map(p => p.length)); r.h = r.pattern.length;
-      r.cells = [];
-      for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { const ch = r.pattern[y][x] || ' '; r.cells.push(ch === ' ' ? 0 : IT.idOf(r.key[ch])); }
-    } else r.ids = r.ingredients.map(IT.idOf).sort((a, b) => a - b);
-    r.needs = {};
-    for (const id of (r.cells || r.ids)) if (id) r.needs[id] = (r.needs[id] || 0) + 1;
-  }
 
   // grid: array of n*n item ids (0 = empty). Returns the matching recipe or null.
   function match(grid, n) {
@@ -82,5 +84,5 @@
     return g;
   }
 
-  BC.crafting = { RECIPES, match, result, consume, fits, missing, layout, gridIds };
+  BC.crafting = { RECIPES, shaped, shapeless, match, result, consume, fits, missing, layout, gridIds };
 })(typeof window !== 'undefined' ? window : globalThis);

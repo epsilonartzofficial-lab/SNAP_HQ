@@ -108,5 +108,12 @@
     return { version: 1, seed, terrainAt, generateChunk, findSpawn };
   }
 
-  BC.worldgen = { IDX, create(version, seed) { if (version !== 1) throw new Error('Unknown world generator version ' + version); return createV1(seed); } };
+  // Generator versions are registered here; worldgen2.js adds version 2. A world keeps the version it was created
+  // with forever, so every registered version must stay deterministic (see tests/golden-v1.json).
+  const VERSIONS = { 1: { name: 'Classic', factory: createV1 } };
+  function register(version, name, factory) { if (VERSIONS[version]) throw new Error('Generator version already registered: ' + version); VERSIONS[version] = { name, factory }; }
+  const has = v => !!VERSIONS[v];
+  const list = () => Object.keys(VERSIONS).map(Number).map(v => ({ version: v, name: VERSIONS[v].name }));
+  function create(version, seed) { const V = VERSIONS[version]; if (!V) throw new Error('Unknown world generator version ' + version); return V.factory(seed >>> 0); }
+  BC.worldgen = { IDX, create, register, has, list };
 })(typeof window !== 'undefined' ? window : globalThis);

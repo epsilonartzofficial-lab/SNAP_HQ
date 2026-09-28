@@ -16,7 +16,7 @@
       const m = new Map();
       for (let i = 0; i + 1 < arr.length; i += 2) {
         const idx = arr[i], id = arr[i + 1];
-        if (Number.isInteger(idx) && idx >= 0 && idx < CS * CS * WH && Number.isInteger(id) && id >= 0 && id < BC.blocks.NB) m.set(idx, id);
+        if (Number.isInteger(idx) && idx >= 0 && idx < CS * CS * WH && (id === 0 || BC.blocks.exists(id))) m.set(idx, id);
       }
       edits.set(k, m);
     }

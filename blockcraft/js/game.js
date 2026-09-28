@@ -32,7 +32,10 @@
   const orbitCenter = new THREE.Vector3();
   let hudHidden = false, debugOn = false;
 
-  const G = BC.game = { state, player, store, get world() { return W; }, get entities() { return E; }, get record() { return rec; }, get screen() { return screen; } };
+  // Extension points for other modules (devtools, lighting, creatures...). Each is a list of functions.
+  const hooks = BC.hooks = BC.hooks || { tick: [], frame: [], worldLoaded: [], worldUnloaded: [] };
+  const run = (list, ...a) => { for (const f of list) { try { f(...a); } catch (e) { reportError(e); } } };
+  const G = BC.game = { state, player, store, hooks, get world() { return W; }, get entities() { return E; }, get record() { return rec; }, get screen() { return screen; } };
 
   // ---------------------------------------------------------------- screens
   let control = (('ontouchstart' in window) && window.matchMedia('(pointer: coarse)').matches) ? 'touch' : 'lock';
@@ -332,7 +335,7 @@
     let touchSprint = false;
     if (control === 'touch') { fwd -= joy.y; str += joy.x; touchSprint = Math.hypot(joy.x, joy.y) > 0.92 && joy.y < -0.5; }
     const shift = k('ShiftLeft') || k('ShiftRight');
-    return { fwd, str, jump: k('Space') || touchJump, shift: shift || touchSneak, down: shift || touchDown, sprint: k('KeyR') || sprintTap || touchSprint };
+    return { fwd, str, jump: k('Space') || touchJump, shift: shift || touchSneak, down: shift || touchDown, sprint: sprintTap || touchSprint };
   }
 
   let bob = 0, bobAmp = 0;
@@ -424,6 +427,7 @@
       if (touching(B.CACTUS)) hurt(1, 'cactus');
     } else st.air = S.MAX_AIR;
     if (player.p.y < -32) hurt(4, 'void');
+    run(hooks.tick, G);
   }
 
   // ---------------------------------------------------------------- targeting, mining, placing, using
@@ -865,6 +869,7 @@
     if (Math.abs(cam.fov - targetFov) > 0.05) { cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 8); cam.updateProjectionMatrix(); }
     R.updateSky(dayTime, paused ? 0 : dt, player.eyeInWater, W.rd);
     R.updateParticles(paused ? 0 : dt);
+    run(hooks.frame, G, paused ? 0 : dt);
     $('t-fly').classList.toggle('on', player.fly);
     $('water-tint').hidden = !player.eyeInWater;
     // held item
@@ -904,6 +909,7 @@
 
   // ---------------------------------------------------------------- boot
   function boot(hotData) {
+    BC.tex.finalize();
     R.init(cv);
     U.init(G);
     R.camera.fov = settings.fov; resize();

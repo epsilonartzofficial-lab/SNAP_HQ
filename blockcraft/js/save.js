@@ -74,7 +74,7 @@
       const now = Date.now();
       const mode = MODES.includes(opts.mode) ? opts.mode : 'survival';
       const w = {
-        v: 2, gen: 1, id: newId(), name: String(opts.name || 'New World').slice(0, 40) || 'New World',
+        v: 2, gen: BC.worldgen.has(opts.gen) ? opts.gen : 1, id: newId(), name: String(opts.name || 'New World').slice(0, 40) || 'New World',
         seed: opts.seed != null && typeof opts.seed === 'number' ? opts.seed >>> 0 : parseSeed(opts.seedText),
         mode, difficulty: [0, 1, 2, 3].includes(opts.difficulty) ? opts.difficulty : 2,
         cheats: opts.cheats != null ? !!opts.cheats : mode === 'creative',
@@ -88,7 +88,7 @@
     function normalize(w) {
       if (!w || typeof w !== 'object') throw new Error('World data is not an object');
       if (w.v !== 2) throw new Error('Unsupported world format version ' + w.v);
-      if (w.gen !== 1) throw new Error('This world needs a newer version of Blockcraft (generator ' + w.gen + ')');
+      if (!BC.worldgen.has(w.gen)) throw new Error('This world needs a newer version of Blockcraft (generator ' + w.gen + ')');
       w.seed = num(w.seed, 0) >>> 0;
       w.mode = MODES.includes(w.mode) ? w.mode : 'survival';
       w.difficulty = [0, 1, 2, 3].includes(w.difficulty) ? w.difficulty : 2;
@@ -101,7 +101,7 @@
         const clean = [];
         for (let i = 0; i + 1 < arr.length; i += 2) {
           const idx = arr[i], id = arr[i + 1];
-          if (Number.isInteger(id) && id >= nb) throw new Error('This world contains blocks from a newer version of Blockcraft');
+          if (Number.isInteger(id) && id > 0 && !BC.blocks.exists(id)) throw new Error('This world contains blocks from a newer version of Blockcraft');
           if (Number.isInteger(idx) && idx >= 0 && idx < vol && Number.isInteger(id) && id >= 0) clean.push(idx, id);
         }
         w.edits[k] = clean;

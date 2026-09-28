@@ -9,8 +9,11 @@
   const BY_KEY = {};
   function reg(id, def) { def.id = id; if (def.maxStack == null) def.maxStack = 64; ITEMS[id] = def; BY_KEY[def.key] = def; return def; }
 
+  // Every registered block (including ones added by blocks-*.js files loaded before this one) gets an item,
+  // unless it opts out with `item: false` (for example a lit furnace, which drops the plain furnace).
   for (let id = 1; id < DEFS.length; id++) {
     const b = DEFS[id];
+    if (!b || b.item === false) continue;
     reg(id, { key: b.key, name: b.name, kind: 'block', block: id });
   }
 
@@ -47,6 +50,13 @@
   // Wooden items burn in a furnace (used from Stage 2).
   ['oak_log', 'oak_planks', 'crafting_table'].forEach(k => { BY_KEY[k].fuel = 15; });
 
+  // Add a non-block item. Id ranges are reserved per workstream (see docs/ROADMAP.md, "Id ranges").
+  function register(id, def) {
+    if (!Number.isInteger(id) || id < 256) throw new Error('Item id must be >= 256: ' + id);
+    if (ITEMS[id]) throw new Error('Item id ' + id + ' is already used by ' + ITEMS[id].key);
+    if (BY_KEY[def.key]) throw new Error('Item key already registered: ' + def.key);
+    return reg(id, def);
+  }
   const get = id => ITEMS[id] || null;
   const key = k => BY_KEY[k] || null;
   const idOf = k => { const d = BY_KEY[k]; if (!d) throw new Error('unknown item ' + k); return d.id; };
@@ -58,5 +68,5 @@
   function make(k, count) { const d = typeof k === 'number' ? ITEMS[k] : BY_KEY[k]; if (!d) return null; const s = { id: d.id, count: count || 1 }; if (d.tool) s.dmg = 0; return s; }
   function valid(s) { return !!(s && ITEMS[s.id] && Number.isInteger(s.count) && s.count > 0 && s.count <= ITEMS[s.id].maxStack); }
 
-  BC.items = { ITEMS, BY_KEY, MATERIALS, TYPES, get, key, idOf, maxStack, toolOf, all, make, valid };
+  BC.items = { ITEMS, BY_KEY, MATERIALS, TYPES, register, get, key, idOf, maxStack, toolOf, all, make, valid };
 })(typeof window !== 'undefined' ? window : globalThis);

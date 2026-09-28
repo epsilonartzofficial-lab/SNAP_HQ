@@ -16,7 +16,7 @@ npm run serve        # optional: http://localhost:8080
 ```
 
 Controls are listed under Settings → Controls in the game. In short: WASD to move, Space to jump, Shift to sneak,
-double-tap W or hold R to sprint, hold left-click to mine, right-click to place or use, E for the inventory and
+double-tap W to sprint, hold left-click to mine, right-click to place or use, E for the inventory and
 Q to drop.
 
 ## Develop
