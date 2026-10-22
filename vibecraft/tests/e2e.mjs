@@ -1438,4 +1438,50 @@ scenario('L', 'Creatures: animals spawn in a Biomes world; a sword kills a pig f
   t.check(s.d < 3, 'after dying, you respawn beside the bed', s);
 });
 
+scenario('M', 'Sound: audio unlocks on the first click; walking, mining, placing, hitting and creatures make sounds; every sound plays without errors; volume is saved', async t => {
+  const g = await t.open();
+  await g.boot();
+  await g.createWorld({ name: 'Noisy', seed: '4242', mode: 'survival' });
+  const s0 = await g.ev(() => ({ running: BC.sfx.running, vol: BC.sfx.volume }));
+  t.check(s0.running && Math.abs(s0.vol - 0.7) < 1e-9, 'audio is running after the menu clicks, at the default 70 % volume', s0);
+  await g.ev(() => { __e2e.sounds = []; const play = BC.sfx.play; BC.sfx.play = (n, o) => { __e2e.sounds.push(n + (o && o.kind ? ':' + o.kind : '')); play(n, o); }; });
+  const spawn = await g.ev(() => BC.game.record.spawn);
+  const gr = await g.ev(([x, z]) => __e2e.findGround(Math.floor(x), Math.floor(z), 0, 40, 3), [spawn[0], spawn[2]]);
+  t.assert(gr, 'no flat ground near spawn');
+  await g.teleport(gr.x - 2, gr.y, gr.z, { yaw: -Math.PI / 2, pitch: 0 });
+  await g.page.keyboard.down('KeyW'); await g.waitGame(1.2); await g.page.keyboard.up('KeyW');
+  await g.ev(() => { const st = BC.game.state; st.inv.fill(null); st.inv[0] = BC.items.make('dirt', 4); st.sel = 0; BC.game.player.protect = 0; });
+  await g.teleport(gr.x, gr.y, gr.z, { yaw: -Math.PI / 2, pitch: 0 });
+  const p = [gr.bx, gr.y, gr.bz];
+  await g.placeOn(p[0] + 2, p[1] - 1, p[2]);
+  await g.mine(p[0] + 2, p[1], p[2]);
+  await g.ev(([x, y, z]) => { BC.game.mobs.config.ai = false; __e2e.pig = BC.game.mobs.spawn('pig', x + 1.8, y, z).uid; }, [p[0] + 0.5, p[1], p[2] + 0.5]);
+  await g.ev(() => { const G = BC.game, m = G.mobs.list.find(m => m.uid === __e2e.pig), e = G.dev.eye(); G.player.yaw = Math.atan2(-(m.x - e.x), -(m.z - e.z)); G.player.pitch = Math.atan2(m.y + m.sp.h / 2 - e.y, Math.hypot(m.x - e.x, m.z - e.z)); });
+  await g.frames(2);
+  await g.page.mouse.down({ button: 'left' }); await g.page.mouse.up({ button: 'left' }); await g.waitGame(0.5);
+  let s = await g.ev(() => __e2e.sounds.slice());
+  const has = n => s.some(x => x === n || x.startsWith(n + ':'));
+  t.check(has('step') && has('place') && has('dig') && has('break') && has('hit') && s.includes('mob:hurt'), 'walking, placing, digging, breaking and hitting a pig all make sounds', [...new Set(s)]);
+  // every sound, every creature voice: no exceptions
+  s = await g.ev(() => {
+    const before = BC.sfx.errors, P = BC.game.player.p, pos = { x: P.x + 2, y: P.y + 1, z: P.z };
+    for (const n of ['step', 'dig', 'place', 'break']) for (const b of [1, 2, 3, 5, 6, 7, 9, 12]) BC.sfx.play(n, { block: b, pos });
+    for (const n of ['hurt', 'land', 'swing', 'hit', 'shoot', 'eat', 'burp', 'splash', 'swim', 'pop', 'click', 'open', 'fizz', 'break_tool']) BC.sfx.play(n, { pos, crit: true });
+    for (const type of BC.sfx.NAMES) for (const kind of ['ambient', 'hurt', 'death']) BC.sfx.play('mob', { type, kind, pos });
+    return { errors: BC.sfx.errors - before, voices: BC.sfx.NAMES.length };
+  });
+  t.check(s.errors === 0 && s.voices === 7, 'all sounds and the 7 creature voices synthesize without errors', s);
+  // audible: a cow's moo through the master bus reaches a real level
+  await g.ev(() => { BC.sfx.level(); BC.sfx.play('mob', { type: 'cow', kind: 'ambient' }); });
+  let peak = 0;
+  for (let i = 0; i < 12; i++) { await sleep(60); peak = Math.max(peak, await g.ev(() => BC.sfx.level())); }
+  t.check(peak > 0.02, 'sound actually comes out (peak level of a moo)', { peak });
+  // volume setting
+  await g.pauseLikeEsc();
+  await g.page.click('#btn-pause-settings'); await g.waitFor(() => !document.getElementById('scr-settings').hidden);
+  await g.page.fill('#set-vol', '25'); await g.page.dispatchEvent('#set-vol', 'input');
+  s = await g.ev(() => ({ vol: BC.sfx.volume, saved: BC.game.store.getSettings().volume, label: document.getElementById('set-vol-out').textContent }));
+  t.check(Math.abs(s.vol - 0.25) < 1e-9 && Math.abs(s.saved - 0.25) < 1e-9 && s.label === '25%', 'the volume slider sets and saves the volume', s);
+});
+
 main().catch(e => { console.error(e); process.exit(1); });

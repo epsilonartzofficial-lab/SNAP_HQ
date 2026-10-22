@@ -10,7 +10,7 @@ Three states only:
 Reference: Minecraft Java Edition 26.3 (stable, 15 September 2026). Reference numbers and sources are in
 [research/REFERENCE-NOTES.md](research/REFERENCE-NOTES.md).
 
-**Last updated: v0.3.1.** Results: 115/115 unit tests, 16/16 lighting tests; browser results are in the
+**Last updated: v0.3.2.** Results: 115/115 unit tests, 16/16 lighting tests; browser results are in the
 v0.3.1 report in [ROADMAP.md](ROADMAP.md). Nothing was tested on a physical phone or tablet, or on a GPU.
 The browser tests use software rendering at well under 30 fps.
 
@@ -29,6 +29,7 @@ The browser tests use software rendering at well under 30 fps.
 | I | Crossing chunk borders: streaming, meshing, generator determinism, edits survive unload |
 | J | Furnace smelting, chest storage across reload, broken containers spill their contents |
 | K | Developer console and panel: commands, completion, cheats gating |
+| M | Audio unlocks on the first click; walking, placing, digging, breaking and hitting make sounds; all sounds synthesize without errors and are audible; volume slider saves |
 | L | Animals spawn in a Biomes world; two sword hits kill a pig for raw pork; shift-click equips a chestplate and the armor bar shows; a bed skips the night and is the respawn point |
 | W-A–W-E | Torch light across chunk borders, torches dropping, sapling growth and grass, falling sand, day/night shading |
 
@@ -50,8 +51,9 @@ The browser tests use software rendering at well under 30 fps.
 | Climb (ladders, vines) | Missing | |
 | Desktop mouse with pointer lock, no-pointer-lock fallback | Working | A–G |
 | Touch controls | Partial | H (emulated only). |
-| Settings: sensitivity, invert Y, FOV, render distance (4–64), reduce motion, hurt tilt, coordinates, developer mode | Partial | Saved; only partly covered by tests. |
-| Audio | Missing | Planned for v0.3.2. |
+| Settings: sensitivity, invert Y, FOV, sound volume, render distance (4–64), reduce motion, hurt tilt, coordinates, developer mode | Partial | Saved; only partly covered by tests. |
+| Sound effects: footsteps and digging by material, breaking, placing, hits, eating, splashes, item pickup, interface clicks, creature voices (ambient, hurt, death), arrows; positioned left/right and by distance | Working | M (each sound plays, the output reaches a real level, volume saved). Synthesized at run time, all original. Not judged by ear on real speakers. |
+| Music | Missing | |
 | Key rebinding, GUI scale | Missing | |
 
 ## 2. Survival

@@ -461,12 +461,13 @@
         else { m.target = true; m.provoked = true; m.unseen = 0; }
       }
       if (view && view.effect) view.effect(inf.crit ? 'crit' : 'hit', m.x, m.y + m.sp.h * 0.6, m.z, { mob: m });
-      if (m.health <= 0) die(m, inf);
+      if (m.health <= 0) die(m, inf); else if (o.sound) o.sound('hurt', m);
       return dealt;
     }
     function die(m, inf) {
       m.deathTime = 0; m.path = null; m.fire = 0; m.killer = inf && inf.attacker === 'player' ? 'player' : null;
       stats.killed++;
+      if (o.sound) o.sound('death', m);
       for (const st of rollDrops(m.sp, m.killer === 'player', rand)) if (o.dropItem) o.dropItem(st, m.x - 0.5, m.y + 0.2, m.z - 0.5);
     }
 
@@ -640,6 +641,7 @@
     // Fired at 1.6 blocks/tick toward the target's body with an upward lead of 0.2 per block of distance and a
     // spread of 14 - 4 * difficulty (reference AbstractSkeleton.performRangedAttack, Projectile.shoot).
     function shootArrow(m, P, ctx) {
+      if (o.sound) o.sound('shoot', m);
       const sx = m.x, sy = eyeY(m) - 0.1, sz = m.z;
       const tx = P.x - sx, ty = P.y + P.h / 3 - sy, tz = P.z - sz, hd = Math.hypot(tx, tz);
       let vx = tx, vy = ty + hd * 0.2, vz = tz;
@@ -838,6 +840,9 @@
         }
         active.push(m);
         m.age = (m.age || 0) + 1;
+        // ambient voice: on average every 6 s for monsters and 8 s for animals (Mob.getAmbientSoundInterval is 80 ticks
+        // with a 1-in-1000 chance per tick after it; this is simpler and close in effect)
+        if (o.sound && rand() < (m.sp.cat === 'hostile' ? 1 / 120 : 1 / 160)) o.sound('ambient', m);
         // environment: daylight burning, fire, cactus
         // Sun burning (Mob.isSunBurnTick): brightness above 0.5, random * 30 < (brightness - 0.4) * 2, sky visible
         // from the eyes, not in water; burns for 8 s.

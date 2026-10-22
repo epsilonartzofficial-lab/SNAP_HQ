@@ -19,6 +19,7 @@
   const memoryOnly = !storage;
   const store = BC.save.createStore(storage || BC.save.memoryStorage());
   let settings = store.getSettings();
+  if (BC.sfx) BC.sfx.setVolume(settings.volume);
 
   // ---------------------------------------------------------------- state
   const state = { mode: 'survival', inv: INV.empty(36), sel: 0, cursor: null, craft: { n: 2, slots: INV.empty(9) }, stats: S.newStats(), eating: 0, open: null };
@@ -26,6 +27,8 @@
   let containers = new Map();   // "x,y,z" → chest or furnace contents (block entities)
   state.armor = INV.empty(4);   // head, chest, legs, feet
   let MB = null, mobView = null, lastAttacker = null, attackTicks = 100, FT = null;
+  const SFX = (name, opts) => { if (BC.sfx) BC.sfx.play(name, opts); };
+  let stepDist = 0, wasInWater = false, digT = 0, eatT = 0, swimT = 0;
   // Full block detail loads up to NEAR_MAX chunks; beyond that, up to the chosen view distance, distant terrain is drawn.
   const NEAR_MAX = 16;
   const nearRD = () => Math.min(settings.renderDistance, NEAR_MAX);
@@ -105,6 +108,7 @@
   G.closeSettings = () => { setScreen(settingsReturn); if (settingsReturn === 'pause') U.setPause(pauseInfo()); };
   G.applySettings = function (s) {
     settings = Object.assign({}, settings, s);
+    if (BC.sfx) BC.sfx.setVolume(settings.volume);
     const r = store.setSettings(settings); if (!r.ok) saveFailed(r);
     if (W) W.setRenderDistance(nearRD());
     setCameraFar();
@@ -208,7 +212,8 @@
     FT = BC.farTerrain.create(R, W.gen); setCameraFar();
     E = BC.entities.create(W, R); E.load(w.entities);
     if (!mobView) mobView = BC.mobModels.createView(R);
-    MB = BC.mobs.create(W, { view: mobView, dropItem: (st, x, y, z) => E.drop(st, x, y, z) });
+    MB = BC.mobs.create(W, { view: mobView, dropItem: (st, x, y, z) => E.drop(st, x, y, z),
+      sound: (kind, m) => SFX(kind === 'shoot' ? 'shoot' : 'mob', { type: m.type, kind, pos: { x: m.x, y: m.y + m.sp.h * 0.8, z: m.z } }) });
     MB.load(w.mobs);
     containers = new Map();
     for (const [k, o] of Object.entries(w.containers || {})) { const c = CT.unpack(o); if (c && /^-?\d+,\d+,-?\d+$/.test(k)) containers.set(k, c); }
@@ -304,7 +309,7 @@
     if ((player.protect > 0 || player.god) && !forced) return;   // spawn protection (3 s) or dev god mode
     const dealt = S.applyDamage(state.stats, amount, S.DAMAGE_EXHAUSTION[cause] != null ? S.DAMAGE_EXHAUSTION[cause] : S.EXHAUST.damage);
     if (dealt <= 0) return;
-    hurtTilt = 0.35;
+    hurtTilt = 0.35; SFX('hurt');
     const f = $('hurt-flash'); f.classList.add('on'); setTimeout(() => f.classList.remove('on'), 60);
     if (state.stats.health <= 0) die(cause);
   }
@@ -336,7 +341,7 @@
     if (crit) dmg *= S.CRIT;
     const dir = lookDir();
     const knock = 0.4 + (player.sprinting && strength > 0.9 ? 0.5 : 0);
-    MB.hurt(m, dmg, { attacker: 'player', dx: dir.x, dz: dir.z, crit, knock });
+    if (MB.hurt(m, dmg, { attacker: 'player', dx: dir.x, dz: dir.z, crit, knock }) > 0) SFX('hit', { crit, pos: { x: m.x, y: m.y + m.sp.h / 2, z: m.z } });
     if (player.sprinting && strength > 0.9) player.sprinting = false;
     attackTicks = 0; swing();
     if (state.mode === 'survival') { if (weapon) damageHeld(S.weaponWear(weapon)); S.addExhaustion(state.stats, S.EXHAUST.attack); }
@@ -490,8 +495,20 @@
     else if (p.y < y0) player.fallDist += y0 - p.y;   // includes the step that lands
     if (player.onGround) {
       if (player.fallDist > 0 && !creative) { const d = S.fallDamage(player.fallDist); if (d > 0) hurt(d, 'fall'); }
+      if (player.fallDist > 1.2) { const below = W.getBlock(Math.floor(p.x), Math.floor(p.y - 0.2), Math.floor(p.z)); SFX('step', { block: below, gain: 1.3 }); if (player.fallDist > 4) SFX('land', { gain: player.fallDist / 10 }); }
       player.fallDist = 0;
     }
+    // footsteps every ~1.7 blocks walked, splashes on entering water, strokes while swimming
+    if (player.onGround && !player.inWater && !player.fly) {
+      stepDist += Math.hypot(p.x - x0, p.z - z0);
+      if (stepDist > (player.sneaking ? 2.2 : player.sprinting ? 2 : 1.7)) {
+        stepDist = 0;
+        SFX('step', { block: W.getBlock(Math.floor(p.x), Math.floor(p.y - 0.2), Math.floor(p.z)), gain: player.sneaking ? 0.4 : 1 });
+      }
+    }
+    if (player.inWater && !wasInWater && v.y < -3) SFX('splash', { gain: Math.min(1, -v.y / 12) });
+    if (player.inWater && Math.hypot(p.x - x0, p.z - z0) > 0.02) { swimT -= 1; if (swimT <= 0) { swimT = 40; SFX('swim'); } }
+    wasInWater = player.inWater;
     // hunger cost of movement
     if (!creative) {
       const moved = Math.hypot(p.x - x0, p.z - z0);
@@ -591,6 +608,7 @@
     if (DEFS[id].bed) { const pt = BC.beds.partner(W, h.x, h.y, h.z); if (pt) W.setBlock(pt.x, pt.y, pt.z, 0); }
     W.setBlock(h.x, h.y, h.z, 0);
     R.burst(h.x, h.y, h.z, id);
+    SFX('break', { block: id, pos: { x: h.x + 0.5, y: h.y + 0.5, z: h.z + 0.5 } });
     if (state.mode === 'survival') {
       const tool = IT.toolOf(held());
       const info = breakInfo(id, tool, env());
@@ -603,7 +621,7 @@
     const s = held(); const d = s && IT.get(s.id);
     if (!d || !d.tool) return;
     s.dmg = (s.dmg || 0) + n;
-    if (s.dmg >= d.tool.durability) { state.inv[state.sel] = null; U.toast(d.name + ' broke!'); }
+    if (s.dmg >= d.tool.durability) { state.inv[state.sel] = null; U.toast(d.name + ' broke!'); SFX('break_tool'); }
   }
   function place(h) {
     const x = h.x + h.n[0], y = h.y + h.n[1], z = h.z + h.n[2];
@@ -679,7 +697,7 @@
     const s = held(), d = s && IT.get(s.id);
     // attack / mine
     if (attackHeld) {
-      if (!h) { if (attackFresh) swing(); mining = null; }
+      if (!h) { if (attackFresh) { swing(); SFX('swing'); } mining = null; }
       else if (creative) {
         if (breakCooldown <= 0 && !(d && d.tool && d.tool.type === 'sword')) { breakBlock(h); breakCooldown = 0.25; swing(); }
         mining = null;
@@ -691,6 +709,7 @@
           const info = breakInfo(h.id, IT.toolOf(s), env());
           if (info.ticks === Infinity) mining.unbreakable = true;
           else mining.progress += info.ticks === 0 ? 1 : dt / info.seconds;
+          digT -= dt; if (digT <= 0 && mining.progress < 1) { digT = 0.25; SFX('dig', { block: h.id, pos: { x: h.x + 0.5, y: h.y + 0.5, z: h.z + 0.5 } }); }
           if (swingT < 0) swing();
           if (mining.progress >= 1) { breakBlock(h); mining = null; breakCooldown = 0.25; }
         }
@@ -705,6 +724,7 @@
       const usable = h && DEFS[h.id].use && !(player.sneaking && s);   // sneaking with an item in hand places instead
       if (useFresh && usable) {
         useFresh = false; useHeld = false;
+        if (DEFS[h.id].use === 'crafting' || DEFS[h.id].container) SFX('open', { pos: { x: h.x + 0.5, y: h.y + 0.5, z: h.z + 0.5 } });
         if (DEFS[h.id].use === 'crafting') openInventory('table');
         else if (DEFS[h.id].container) openContainer(h);
         else if (DEFS[h.id].bed) useBed(h);
@@ -712,14 +732,15 @@
       }
       if (d && d.food && S.canEat(state.stats, d.food, creative) && !usable) {
         state.eating += dt / 1.6;
+        eatT -= dt; if (eatT <= 0) { eatT = 0.22; SFX('eat'); }
         if (Math.random() < dt * 6) R.burst(Math.floor(eyePos().x), Math.floor(eyePos().y - 0.6), Math.floor(eyePos().z), B.LEAVES, 2);
         if (state.eating >= 1) {
-          S.eat(state.stats, d.food); state.eating = 0;
+          S.eat(state.stats, d.food); state.eating = 0; SFX('burp');
           if (!creative) { s.count--; if (s.count <= 0) state.inv[state.sel] = null; }
         }
       } else {
         state.eating = 0;
-        if ((useCooldown <= 0 || useFresh) && h && d && (d.kind === 'block' || d.placesBed)) { if (place(h)) useCooldown = 0.2; }
+        if ((useCooldown <= 0 || useFresh) && h && d && (d.kind === 'block' || d.placesBed)) { if (place(h)) { useCooldown = 0.2; const px = h.x + h.n[0], py = h.y + h.n[1], pz = h.z + h.n[2]; SFX('place', { block: W.getBlock(px, py, pz), pos: { x: px + 0.5, y: py + 0.5, z: pz + 0.5 } }); } }
       }
       useFresh = false;
     } else state.eating = 0;
@@ -885,7 +906,7 @@
   function pickup(stack) {
     const before = stack.count;
     const left = INV.addPlayer(state.inv, stack, state.sel);
-    if (left !== before && screen === 'inventory') U.renderInventory();
+    if (left !== before) { SFX('pop'); if (screen === 'inventory') U.renderInventory(); }
     return left;
   }
 
@@ -1086,6 +1107,7 @@
       if (screen === 'play' && !player.dead) interact(dt);
       else { mining = null; R.setCrack(null, -1); R.setHighlight(null); }
       E.update(dt, { x: player.p.x, y: player.p.y, z: player.p.z, alive: !player.dead }, pickup);
+      if (BC.sfx) { const e = eyePos(); BC.sfx.setListener(e.x, e.y, e.z, player.yaw); }
       if (!G.dev.freezeTime) dayTime = (dayTime + dt / DAY_LEN * G.dev.timeScale) % 1;
       if (player.protect > 0) player.protect -= dt;
       if (swingT >= 0) { swingT += dt / 0.3; if (swingT >= 1) swingT = -1; }
@@ -1150,7 +1172,7 @@
     U.init(G);
     R.camera.fov = settings.fov; resize();
     const m = store.migrateV1();
-    settings = store.getSettings();
+    settings = store.getSettings(); if (BC.sfx) BC.sfx.setVolume(settings.volume);
     R.camera.fov = settings.fov; R.camera.updateProjectionMatrix();
     let meta = `Version ${BC.VERSION}`;
     if (m && m.ok) meta += ' · your earlier world was moved to “My first world”';

@@ -1,6 +1,6 @@
 {
   "name": "vibecraft",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Vibecraft, a browser voxel game that runs straight from index.html; tools/build.mjs bundles it into single-file builds in dist/.",
   "scripts": {

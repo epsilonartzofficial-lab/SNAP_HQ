@@ -213,19 +213,22 @@
     $('set-sens').value = s.sensitivity; $('set-sens-out').textContent = (+s.sensitivity).toFixed(1) + '×';
     $('set-fov').value = s.fov; $('set-fov-out').textContent = s.fov + '°';
     $('set-rd').value = String(s.renderDistance);
+    const vol = s.volume == null ? 0.7 : s.volume; $('set-vol').value = Math.round(vol * 100); $('set-vol-out').textContent = Math.round(vol * 100) + '%';
     $('set-invert').checked = !!s.invertY; $('set-motion').checked = !!s.reduceMotion; $('set-tilt').checked = !!s.damageTilt; $('set-coords').checked = !!s.showCoords;
     $('set-dev').checked = !!s.devMode;
   };
   function readSettings() {
     return {
-      sensitivity: +$('set-sens').value, fov: +$('set-fov').value, renderDistance: +$('set-rd').value,
+      sensitivity: +$('set-sens').value, fov: +$('set-fov').value, renderDistance: +$('set-rd').value, volume: +$('set-vol').value / 100,
       invertY: $('set-invert').checked, reduceMotion: $('set-motion').checked, damageTilt: $('set-tilt').checked, showCoords: $('set-coords').checked, devMode: $('set-dev').checked,
     };
   }
-  for (const id of ['set-sens', 'set-fov', 'set-rd', 'set-invert', 'set-motion', 'set-tilt', 'set-coords', 'set-dev']) {
+  for (const id of ['set-sens', 'set-fov', 'set-vol', 'set-rd', 'set-invert', 'set-motion', 'set-tilt', 'set-coords', 'set-dev']) {
     $(id).addEventListener('input', () => { const s = readSettings(); U.loadSettings(s); G.applySettings(s); });
   }
   $('btn-settings-done').addEventListener('click', () => G.closeSettings());
+  // interface click sound for buttons and slots
+  document.addEventListener('click', e => { if (BC.sfx && e.target.closest && e.target.closest('button, .slot, .menu-item, .world-row, .recipe')) BC.sfx.play('click'); }, true);
 
   // ---------------------------------------------------------------- title / pause / death buttons
   $('btn-singleplayer').addEventListener('click', () => G.setScreen('worlds'));

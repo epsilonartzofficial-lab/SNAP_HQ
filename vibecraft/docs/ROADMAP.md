@@ -35,12 +35,24 @@ update: run the tests, push, publish a build, write a short report, and stop for
 |---|---|---|
 | 0.3.1 Fix and verify | All browser scenarios green, new creature scenario L, checklist and README current | Every automated test passes |
 | 0.3.2 Sound | Original generated sound effects for steps, mining, placing, hits, eating, animals, monsters, water; volume setting | Every common action has a sound; volume is saved |
-| 0.3.3 Biome variety | Birch, spruce, jungle and acacia tree shapes; tall grass, ferns, dead bushes, berry bushes, biome flowers | 500 blocks of walking crosses visibly different places |
-| 0.3.4 Farming and breeding | Hoe, seeds, wheat growth stages, bread; animals follow wheat, breed, babies grow up | A farm and a herd in one session |
-| 0.3.5 Bow, shears, wool | Bow and arrows, shearing, dyes from flowers, coloured wool | Craft a bow, shoot a monster, build with coloured wool |
-| 0.3.6 Item art | Redrawn tool, food and armor icons and held items | Every item is recognisable at hotbar size |
-| 0.3.7 Character creation | Skin, hair, shirt and trousers chosen per world; first-person arm matches | Choices are saved with the world |
-| 0.3.8 Desktop app | Electron package; Ctrl to sprint; Ctrl+W can't close the game | An installable app runs existing worlds |
+| 0.3.3 Building blocks | Logs placed along any axis; slabs and stairs for each wood and stone, placed on top, bottom, vertical, upside down and turned every way | Every orientation places from the face you click and survives save and reload |
+| 0.3.4 Biome variety | Birch, spruce, jungle and acacia tree shapes; tall grass, ferns, dead bushes, berry bushes, biome flowers | 500 blocks of walking crosses visibly different places |
+| 0.3.5 Farming and breeding | Hoe, seeds, wheat growth stages, bread; animals follow wheat, breed, babies grow up | A farm and a herd in one session |
+| 0.3.6 Bow, shears, wool | Bow and arrows, shearing, dyes from flowers, coloured wool | Craft a bow, shoot a monster, build with coloured wool |
+| 0.3.7 Item art | Redrawn tool, food and armor icons and held items | Every item is recognisable at hotbar size |
+| 0.3.8 Character creation | Skin, hair, shirt and trousers chosen per world; first-person arm matches | Choices are saved with the world |
+| 0.3.9 Desktop app | Electron package; Ctrl to sprint; Ctrl+W can't close the game | An installable app runs existing worlds |
+
+### 0.3.2 report
+
+- New `js/audio.js`: every sound is synthesized with the Web Audio API (filtered noise and oscillators), so there
+  are no audio files and nothing copied. Materials: grass, dirt, gravel, sand, snow, plants, wool, wood, stone, glass.
+  Creature voices for all seven creatures. Sounds are placed left/right and fade with distance (16–20 blocks).
+- Hooks: footsteps every ~1.7 blocks (quieter when sneaking), landing, splash, swimming, digging every 0.25 s,
+  break, place, swing, hit (with a sharper crit), player hurt, eating and burp, item pickup, opening tables and
+  containers, tools breaking, menu clicks; creatures speak now and then, when hurt, when dying, and archers when shooting.
+- Settings: Sound volume (default 70 %), saved.
+- New browser scenario M.
 
 ### 0.3.1 report
 

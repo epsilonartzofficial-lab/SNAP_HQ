@@ -64,7 +64,11 @@
     <h2 id="news-h">What's new</h2>
     <div class="news-list">
       <article>
-        <h3>Version 0.3.1: creatures and combat</h3>
+        <h3>Version 0.3.2: sound</h3>
+        <p>Footsteps, digging and breaking that sound like the block, creature voices, hits, splashes and more. Set the volume in Settings.</p>
+      </article>
+      <article>
+        <h3>Creatures and combat</h3>
         <p>Pigs, cows, sheep and chickens roam the land; monsters come out at night. Fight with swords, wear armor, sleep in a bed to skip the night and respawn beside it. Cook meat in a furnace.</p>
       </article>
       <article>
@@ -77,7 +81,7 @@
       </article>
       <article>
         <h3>Next</h3>
-        <p>Sound, more varied biomes, farming and breeding, then bows and coloured wool.</p>
+        <p>Logs in any direction, slabs and stairs every way round, more varied biomes, farming and breeding.</p>
       </article>
     </div>
     <button class="btn menu-cta" id="btn-news-play" type="button">Play</button>
@@ -163,6 +167,7 @@
     <div class="settings-grid">
       <label class="field-col" for="set-sens">Mouse sensitivity <output id="set-sens-out"></output><input type="range" id="set-sens" min="0.2" max="3" step="0.1"></label>
       <label class="field-col" for="set-fov">Field of view <output id="set-fov-out"></output><input type="range" id="set-fov" min="50" max="110" step="1"></label>
+      <label class="field-col" for="set-vol">Sound volume <output id="set-vol-out"></output><input type="range" id="set-vol" min="0" max="100" step="1"></label>
       <label class="field-col" for="set-rd">Render distance
         <select id="set-rd"><option value="4">4 chunks</option><option value="6">6 chunks</option><option value="8">8 chunks</option><option value="10">10 chunks</option><option value="12">12 chunks</option><option value="16">16 chunks</option><option value="24">24 chunks (distant terrain beyond 16)</option><option value="32">32 chunks (distant terrain beyond 16)</option><option value="48">48 chunks (distant terrain beyond 16)</option><option value="64">64 chunks (distant terrain beyond 16)</option></select>
       </label>
@@ -251,6 +256,7 @@
 <script src="js/tex-stage2.js"></script>
 <script src="js/tex-biomes.js"></script>
 <script src="js/tex-combat.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/render.js"></script>
 <script src="js/mob-models.js"></script>
 <script src="js/farterrain.js"></script>
