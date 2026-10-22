@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const root = path.resolve(here, '..');
-export const PURE = ['core', 'blocks', 'blocks-world', 'blocks-stage2', 'blocks-biomes', 'items', 'items-stage2', 'inventory', 'crafting', 'recipes-stage2', 'containers', 'survival', 'worldgen', 'worldgen2', 'lighting', 'save'];
+export const PURE = ['core', 'blocks', 'blocks-world', 'blocks-stage2', 'blocks-biomes', 'blocks-combat', 'items', 'items-stage2', 'items-combat', 'inventory', 'crafting', 'recipes-stage2', 'recipes-combat', 'containers', 'survival', 'worldgen', 'worldgen2', 'lighting', 'save'];
 
 export function loadBC(files = PURE) {
   const ctx = { console, Math, Date, JSON, BigInt, Uint8Array, Int16Array, Float32Array, Map, Set };

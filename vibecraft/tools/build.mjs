@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Blockcraft build. Reads index.html and writes two single-file versions of the game:
+// Vibecraft build. Reads index.html and writes two single-file versions of the game:
 //
-//   dist/blockcraft.html  Self-contained page: every local stylesheet and <script src> (three.js
+//   dist/vibecraft.html  Self-contained page: every local stylesheet and <script src> (three.js
 //                         included) is inlined in document order, so the file works offline from file://.
 //   dist/artifact.html    Page body for a host that supplies its own <!doctype>/<html>/<head>/<body>:
 //                         no wrapper tags and no charset/viewport meta, <title>/font links/<style> on top,
@@ -141,12 +141,12 @@ function main() {
   const sources = readSources([...styles, ...scripts]);
 
   const outputs = [
-    ['blockcraft.html', render(html, sources, { artifact: false }), `${scripts.length} scripts + ${styles.length} stylesheet(s) inlined`],
+    ['vibecraft.html', render(html, sources, { artifact: false }), `${scripts.length} scripts + ${styles.length} stylesheet(s) inlined`],
     ['artifact.html', render(html, sources, { artifact: true }), `${scripts.length - 1} scripts inlined, three.js r128 from cdnjs`],
   ];
 
   fs.mkdirSync(DIST, { recursive: true });
-  console.log(`Blockcraft build (${scripts.length} scripts: ${scripts.join(', ')})`);
+  console.log(`Vibecraft build (${scripts.length} scripts: ${scripts.join(', ')})`);
   for (const [name, text, note] of outputs) {
     fs.writeFileSync(path.join(DIST, name), text);
     const bytes = Buffer.byteLength(text), gz = zlib.gzipSync(text, { level: 9 }).length;

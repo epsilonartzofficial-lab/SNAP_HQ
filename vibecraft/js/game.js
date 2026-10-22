@@ -24,6 +24,12 @@
   const state = { mode: 'survival', inv: INV.empty(36), sel: 0, cursor: null, craft: { n: 2, slots: INV.empty(9) }, stats: S.newStats(), eating: 0, open: null };
   const CT = BC.containers;
   let containers = new Map();   // "x,y,z" → chest or furnace contents (block entities)
+  state.armor = INV.empty(4);   // head, chest, legs, feet
+  let MB = null, mobView = null, lastAttacker = null, attackTicks = 100, FT = null;
+  // Full block detail loads up to NEAR_MAX chunks; beyond that, up to the chosen view distance, distant terrain is drawn.
+  const NEAR_MAX = 16;
+  const nearRD = () => Math.min(settings.renderDistance, NEAR_MAX);
+  function setCameraFar() { R.camera.far = Math.max(700, settings.renderDistance * 16 + 400); R.camera.updateProjectionMatrix(); }
   const player = {
     p: new THREE.Vector3(), v: new THREE.Vector3(), yaw: 0, pitch: 0, onGround: false, fly: false, sneaking: false, sprinting: false,
     inWater: false, eyeInWater: false, fallDist: 0, dead: false, deathMsg: '', height: STAND_H, protect: 0,
@@ -38,7 +44,7 @@
   // Extension points for other modules (devtools, lighting, creatures...). Each is a list of functions.
   const hooks = BC.hooks;
   const run = (list, ...a) => { for (const f of list) { try { f(...a); } catch (e) { reportError(e); } } };
-  const G = BC.game = { state, player, store, hooks, get world() { return W; }, get entities() { return E; }, get record() { return rec; }, get screen() { return screen; } };
+  const G = BC.game = { state, player, store, hooks, get world() { return W; }, get mobs() { return MB; }, get farTerrain() { return FT; }, get entities() { return E; }, get record() { return rec; }, get screen() { return screen; } };
 
   // ---------------------------------------------------------------- screens
   let control = (('ontouchstart' in window) && window.matchMedia('(pointer: coarse)').matches) ? 'touch' : 'lock';
@@ -100,7 +106,8 @@
   G.applySettings = function (s) {
     settings = Object.assign({}, settings, s);
     const r = store.setSettings(settings); if (!r.ok) saveFailed(r);
-    if (W) W.setRenderDistance(settings.renderDistance);
+    if (W) W.setRenderDistance(nearRD());
+    setCameraFar();
     R.camera.fov = settings.fov; R.camera.updateProjectionMatrix();
   };
 
@@ -110,7 +117,7 @@
     if (performance.now() - lastSaveError < 60000) return;
     lastSaveError = performance.now();
     U.error(r.quota
-      ? 'Couldn’t save: this browser’s storage for Blockcraft is full. Export your world from the world list to keep a copy, or delete old worlds.'
+      ? 'Couldn’t save: this browser’s storage for Vibecraft is full. Export your world from the world list to keep a copy, or delete old worlds.'
       : 'Couldn’t save the world (' + ((r.error && r.error.message) || 'storage error') + '). Your progress stays in this tab until you close it.');
   }
   function reportError(e) {
@@ -136,6 +143,8 @@
       inventory: INV.pack(inv), stats: Object.assign({}, state.stats), dead: player.dead, deathMsg: player.deathMsg, fallDist: +player.fallDist.toFixed(2),
     };
     rec.entities = E.pack().concat(extra);
+    if (MB) rec.mobs = MB.pack();
+    rec.player.armor = INV.pack(state.armor);
     rec.containers = {};
     for (const [k, c] of containers) rec.containers[k] = CT.pack(c);
     return rec;
@@ -160,7 +169,7 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
   // ---------------------------------------------------------------- world lifecycle
-  function disposeWorld() { if (rec) run(hooks.worldUnloaded, G); if (E) E.clear(); if (W) W.dispose(); R.clearParticles(); W = null; E = null; }
+  function disposeWorld() { if (rec) run(hooks.worldUnloaded, G); if (FT) { FT.dispose(); FT = null; } if (MB) { MB.clear(); MB = null; } if (E) E.clear(); if (W) W.dispose(); R.clearParticles(); W = null; E = null; }
   G.listWorlds = () => store.listWorlds();
   G.createWorld = function (opts) {
     const r = store.newWorld(opts);
@@ -195,8 +204,12 @@
   function enterWorld(w) {
     disposeWorld();
     rec = w;
-    W = BC.world.create(w, R); W.setRenderDistance(settings.renderDistance);
+    W = BC.world.create(w, R); W.setRenderDistance(nearRD());
+    FT = BC.farTerrain.create(R, W.gen); setCameraFar();
     E = BC.entities.create(W, R); E.load(w.entities);
+    if (!mobView) mobView = BC.mobModels.createView(R);
+    MB = BC.mobs.create(W, { view: mobView, dropItem: (st, x, y, z) => E.drop(st, x, y, z) });
+    MB.load(w.mobs);
     containers = new Map();
     for (const [k, o] of Object.entries(w.containers || {})) { const c = CT.unpack(o); if (c && /^-?\d+,\d+,-?\d+$/.test(k)) containers.set(k, c); }
     state.open = null;
@@ -206,8 +219,7 @@
     dayTime = w.dayTime; state.mode = w.mode;
     state.cursor = null; state.craft = { n: 2, slots: INV.empty(9) }; state.eating = 0;
     if (!w.spawn) {
-      const [sx, sz] = W.gen.findSpawn();
-      W.prime(sx + 0.5, sz + 0.5);
+      const [sx, sz] = groundSpawn(...W.gen.findSpawn());
       w.spawn = [sx + 0.5, W.surfaceY(sx, sz), sz + 0.5];
     }
     const p = w.player;
@@ -215,11 +227,12 @@
       if (p.x == null) player.p.set(w.spawn[0], w.spawn[1], w.spawn[2]); else player.p.set(p.x, p.y, p.z); player.yaw = p.yaw || 0; player.pitch = p.pitch || 0;
       player.fly = !!p.fly && state.mode === 'creative';
       state.inv = INV.unpack(p.inventory, 36); state.sel = p.sel | 0;
+      state.armor = INV.unpack(p.armor, 4);
       state.stats = Object.assign(S.newStats(), p.stats);
       player.dead = !!p.dead; player.deathMsg = p.deathMsg || '';
     } else {
       player.p.set(w.spawn[0], w.spawn[1], w.spawn[2]); player.yaw = Math.PI * 0.25; player.pitch = -0.1; player.fly = false;
-      state.inv = INV.empty(36); state.sel = 0; state.stats = S.newStats(); player.dead = false; player.deathMsg = '';
+      state.inv = INV.empty(36); state.armor = INV.empty(4); state.sel = 0; state.stats = S.newStats(); player.dead = false; player.deathMsg = '';
       if (state.mode === 'creative') CREATIVE_START.forEach((k, i) => { state.inv[i] = IT.make(k, 64); });
     }
     player.v.set(0, 0, 0); player.sneaking = false; player.sprinting = false; player.protect = 3;
@@ -232,6 +245,17 @@
     saveNow();
     if (player.dead) { U.setDeath(player.deathMsg); setScreen('death'); }
     else startPlaying();
+  }
+  // The generator's spawn column can sit under a neighbouring tree's canopy; step outwards to open ground.
+  const CANOPY = /leaves|_log$|wood$/;
+  function groundSpawn(sx, sz) {
+    W.prime(sx + 0.5, sz + 0.5);
+    for (let r = 0; r <= 12; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+      const x = sx + dx, z = sz + dz, y = W.surfaceY(x, z), top = W.getBlock(x, y - 1, z);
+      if (!LIQUID[top] && !CANOPY.test(DEFS[top].key)) return [x, z];
+    }
+    return [sx, sz];
   }
   function makeBackdrop() {
     W = BC.world.create(PANORAMA, R); W.setRenderDistance(Math.min(settings.renderDistance, 6));
@@ -250,6 +274,8 @@
     quitArmed = false;
     orbitCenter.copy(player.p);
     run(hooks.worldUnloaded, G);
+    if (FT) { FT.dispose(); FT = null; }
+    if (MB) { MB.clear(); MB = null; }
     if (E) E.clear(); E = null; rec = null;
     releaseInputs();
     setScreen('title');
@@ -283,13 +309,47 @@
     if (state.stats.health <= 0) die(cause);
   }
   G.hurt = hurt;
+  function hurtByMob(dmg, cause, mob, dir) {
+    if (state.mode !== 'survival' || player.dead) return;
+    let d = S.scaleDamage(dmg, rec.difficulty);
+    if (d <= 0) return;
+    if (S.ARMORED[cause]) {
+      const t = BC.armor.totals(state.armor);
+      if (t.points > 0) { d = S.armorReduce(d, t.points, t.toughness); for (const nm of BC.armor.wear(state.armor, S.armorWear(dmg))) U.toast(nm + ' broke!'); }
+    }
+    const before = state.stats.health;
+    lastAttacker = mob || null;
+    hurt(d, cause);
+    if (state.stats.health < before && dir && (dir.dx || dir.dz)) {
+      const k = S.knockback({ x: player.v.x / 20, y: player.v.y / 20, z: player.v.z / 20 }, 0.4, dir.dx, dir.dz, player.onGround);
+      player.v.set(k.x * 20, k.y * 20, k.z * 20);
+    }
+  }
+  G.hurtByMob = hurtByMob;
+  // Player attacks a creature: reference cooldown strength, criticals, knockback and weapon wear.
+  function attackMob(m) {
+    const s = held(), tool = IT.toolOf(s), weapon = tool && tool.type !== 'armor' ? tool : null;
+    const base = weapon ? weapon.damage : 1, speed = weapon ? weapon.attackSpeed : 4;
+    const strength = S.attackStrength(attackTicks, speed);
+    let dmg = S.attackDamage(base, strength);
+    const crit = S.isCrit({ strength, fallDist: player.fallDist, onGround: player.onGround, inWater: player.inWater, flying: player.fly, sprinting: player.sprinting });
+    if (crit) dmg *= S.CRIT;
+    const dir = lookDir();
+    const knock = 0.4 + (player.sprinting && strength > 0.9 ? 0.5 : 0);
+    MB.hurt(m, dmg, { attacker: 'player', dx: dir.x, dz: dir.z, crit, knock });
+    if (player.sprinting && strength > 0.9) player.sprinting = false;
+    attackTicks = 0; swing();
+    if (state.mode === 'survival') { if (weapon) damageHeld(S.weaponWear(weapon)); S.addExhaustion(state.stats, S.EXHAUST.attack); }
+  }
   function die(cause) {
     player.dead = true;
-    player.deathMsg = 'You ' + (S.DEATH_MESSAGES[cause] || S.DEATH_MESSAGES.generic) + '.';
+    const who = lastAttacker && lastAttacker.sp ? `${lastAttacker.sp.article || 'a'} ${lastAttacker.sp.name}` : 'something';
+    player.deathMsg = 'You ' + (S.DEATH_MESSAGES[cause] || S.DEATH_MESSAGES.generic).replace('{mob}', who) + '.';
     if (screen === 'inventory') closeInventory(true);
     releaseInputs();
     const p = player.p;
     for (let i = 0; i < 36; i++) if (state.inv[i]) { E.scatter(state.inv[i], p.x, p.y, p.z); state.inv[i] = null; }
+    for (let i = 0; i < 4; i++) if (state.armor[i]) { E.scatter(state.armor[i], p.x, p.y, p.z); state.armor[i] = null; }
     state.eating = 0; mining = null;
     U.setDeath(player.deathMsg);
     setScreen('death');
@@ -297,10 +357,17 @@
   }
   G.respawn = function () {
     if (!rec) return;
-    const [sx, , sz] = rec.spawn;
+    let [sx, , sz] = rec.spawn, y = null;
+    // A bed respawn point wins while the bed still stands and has room beside it.
+    if (rec.bed) {
+      W.prime(rec.bed[0], rec.bed[2]);
+      const up = BC.beds.isBed(W.getBlock(rec.bed[0], rec.bed[1], rec.bed[2])) && BC.beds.standUp(W, rec.bed[0], rec.bed[1], rec.bed[2]);
+      if (up) { sx = up.x; y = up.y; sz = up.z; }
+      else { rec.bed = null; setTimeout(() => U.toast('Your bed was missing or obstructed'), 300); }
+    }
     W.prime(sx, sz);
     // Respawn on the current top block of the spawn column, so digging or building there can't trap you.
-    const y = W.surfaceY(Math.floor(sx), Math.floor(sz));
+    if (y == null) y = W.surfaceY(Math.floor(sx), Math.floor(sz));
     player.p.set(sx, y, sz); player.v.set(0, 0, 0); player.fallDist = 0; player.fly = false; player.protect = 3;
     state.stats = S.newStats(); player.dead = false; player.deathMsg = '';
     U.resetHud();
@@ -468,6 +535,15 @@
     } else st.air = S.MAX_AIR;
     if (player.p.y < -32) hurt(4, 'void');
     tickContainers();
+    attackTicks++;
+    if (MB) {
+      const survival = state.mode === 'survival';
+      MB.tick({
+        player: { x: player.p.x, y: player.p.y, z: player.p.z, h: player.height, eye: player.p.y + (player.sneaking ? SNEAK_EYE : EYE), alive: !player.dead,
+          hittable: survival && !player.dead && !player.god, targetable: survival && !player.dead && !player.god },
+        difficulty: rec.difficulty, tick: Math.floor(dayTime * 24000), hurtPlayer: hurtByMob,
+      });
+    }
     run(hooks.tick, G);
   }
 
@@ -486,7 +562,7 @@
     let n = [0, 0, 0], t = 0;
     while (t <= reach) {
       const id = W.getBlock(x, y, z);
-      if (id && !LIQUID[id]) return { x, y, z, id, n };
+      if (id && !LIQUID[id]) return { x, y, z, id, n, t };
       if (tx < ty && tx < tz) { x += sx; t = tx; tx += tdx; n = [-sx, 0, 0]; }
       else if (ty < tz) { y += sy; t = ty; ty += tdy; n = [0, -sy, 0]; }
       else { z += sz; t = tz; tz += tdz; n = [0, 0, -sz]; }
@@ -512,13 +588,14 @@
   function breakBlock(h) {
     const id = h.id;
     if (DEFS[id].container) spillContainer(CT.key(h.x, h.y, h.z), h.x, h.y, h.z);
+    if (DEFS[id].bed) { const pt = BC.beds.partner(W, h.x, h.y, h.z); if (pt) W.setBlock(pt.x, pt.y, pt.z, 0); }
     W.setBlock(h.x, h.y, h.z, 0);
     R.burst(h.x, h.y, h.z, id);
     if (state.mode === 'survival') {
       const tool = IT.toolOf(held());
       const info = breakInfo(id, tool, env());
       for (const d of drops(id, info.canHarvest, Math.random)) E.drop(IT.make(d.key, d.count), h.x, h.y, h.z);
-      if (tool && DEFS[id].hardness > 0) damageHeld(tool.type === 'sword' ? 2 : 1);
+      if (tool && tool.type !== 'armor' && DEFS[id].hardness > 0) damageHeld(tool.type === 'sword' ? 2 : 1);
       S.addExhaustion(state.stats, S.EXHAUST.mine);
     }
   }
@@ -533,6 +610,16 @@
     if (y < 0 || y >= WH) return false;
     const cur = W.getBlock(x, y, z); if (cur && !LIQUID[cur]) return false;
     const s = held(); const d = s && IT.get(s.id);
+    if (d && d.placesBed) {
+      if (!SOLID[W.getBlock(x, y - 1, z)]) return false;
+      const cells = BC.beds.placement(W, x, y, z, player);
+      if (!cells) { U.toast('Not enough room for a bed'); return false; }
+      const fx = cells[1][0], fz = cells[1][2];
+      if (!SOLID[W.getBlock(fx, y - 1, fz)]) return false;
+      for (const [cx, cy, cz, cid] of cells) W.setBlock(cx, cy, cz, cid);
+      if (state.mode === 'survival') { s.count--; if (s.count <= 0) state.inv[state.sel] = null; }
+      swing(); return true;
+    }
     if (!d || d.kind !== 'block') return false;
     // Block-specific placement rules: canPlace(world, x, y, z, face) and placeAs(...) for oriented variants.
     const bd = DEFS[d.block];
@@ -575,7 +662,17 @@
   }
 
   function interact(dt) {
-    const h = raycast();
+    let h = raycast();
+    // A creature in the crosshair, nearer than the block, takes the click (survival reach 3, creative 5).
+    if (MB) {
+      const o = R.camera.position, d = lookDir(), mh = MB.raycast(o.x, o.y, o.z, d.x, d.y, d.z, state.mode === 'creative' ? 5 : 3);
+      if (mh && (!h || mh.dist < h.t)) {
+        if (attackFresh) attackMob(mh.mob);
+        attackFresh = false; mining = null; R.setCrack(null, -1); R.setHighlight(null);
+        if (useFresh) useFresh = false;
+        return;
+      }
+    }
     R.setHighlight(h);
     breakCooldown -= dt; useCooldown -= dt;
     const creative = state.mode === 'creative';
@@ -610,6 +707,7 @@
         useFresh = false; useHeld = false;
         if (DEFS[h.id].use === 'crafting') openInventory('table');
         else if (DEFS[h.id].container) openContainer(h);
+        else if (DEFS[h.id].bed) useBed(h);
         return;
       }
       if (d && d.food && S.canEat(state.stats, d.food, creative) && !usable) {
@@ -637,6 +735,16 @@
     returnToInventory(leftovers);
     setScreen('inventory');
     U.openInventory(kind);
+  }
+  // Beds: set the respawn point; at night with no monsters near, sleep until morning.
+  function useBed(h) {
+    const hd = BC.beds.head(W, h.x, h.y, h.z);
+    rec.bed = [hd.x, hd.y, hd.z];
+    const tick = Math.floor(dayTime * 24000);
+    if (!BC.mobs.canSleepAt(tick)) { U.toast('Respawn point set. You can only sleep at night'); return; }
+    if (MB && state.mode === 'survival' && MB.hostilesNear(hd.x, hd.y, hd.z, 8, 5).length) { U.toast('You may not rest now; there are monsters nearby'); return; }
+    const f = $('hurt-flash'); f.style.background = '#000'; f.classList.add('on');
+    setTimeout(() => { dayTime = 0; f.classList.remove('on'); setTimeout(() => { f.style.background = ''; }, 400); U.toast('You slept through the night'); saveNow(); }, 600);
   }
   function openContainer(h) {
     if (screen !== 'play' || player.dead) return;
@@ -669,6 +777,7 @@
     if (c === 'result') { const r = G.craftResult(); return r && r.stack; }
     if (c === 'palette') return IT.make(i, 1);
     if ((c === 'chest' || c === 'furnace') && state.open) return state.open.c.slots[i];
+    if (c === 'armor') return state.armor[i];
     return null;
   };
   const boxSlots = c => ((c === 'chest' || c === 'furnace') && state.open ? state.open.c.slots : null);
@@ -680,6 +789,7 @@
     if (c === 'inv') {
       if (action === 'shift' && box && box.type === 'chest') INV.quickMove(state.inv, i, [[box.slots, box.slots.map((_, k) => k)]]);
       else if (action === 'shift' && box && box.type === 'furnace' && state.inv[i] && CT.furnaceTarget(state.inv[i]) >= 0) INV.quickMove(state.inv, i, [[box.slots, [CT.furnaceTarget(state.inv[i])]]]);
+      else if (action === 'shift' && !box && BC.armor.armorOf(state.inv[i]) && !state.armor[BC.armor.armorOf(state.inv[i]).slot]) { const a = BC.armor.armorOf(state.inv[i]); state.armor[a.slot] = state.inv[i]; state.inv[i] = null; }
       else if (action === 'shift') INV.quickMove(state.inv, i, [[state.inv, i < 9 ? MAIN : HOT]]);
       else if (action === 'middle') { if (creative && state.inv[i] && !state.cursor) state.cursor = IT.make(state.inv[i].id, IT.maxStack(state.inv[i].id)); }
       else state.cursor = INV.click(state.inv, i, btn, state.cursor);
@@ -707,6 +817,9 @@
       if (action === 'shift') INV.addTo(state.inv, IT.make(i, m), HOT.concat(MAIN));
       else if (action === 'right' && state.cursor && state.cursor.id === i && state.cursor.count < m) state.cursor.count++;
       else state.cursor = IT.make(i, action === 'right' ? 1 : m);
+    } else if (c === 'armor') {
+      if (action === 'shift') INV.quickMove(state.armor, i, [[state.inv, MAIN], [state.inv, HOT]]);
+      else if (action !== 'middle') state.cursor = INV.click(state.armor, i, 0, state.cursor, st => BC.armor.fits(st, i));
     } else if (c === 'trash' && creative) {
       state.cursor = null;
     } else if (box && (c === 'chest' || c === 'furnace')) {
@@ -725,14 +838,15 @@
     U.renderInventory();
   };
   G.swapWithHotbar = function (c, i, n) {
-    const src = c === 'inv' ? state.inv : c === 'craft' ? state.craft.slots : boxSlots(c);
+    const src = c === 'inv' ? state.inv : c === 'craft' ? state.craft.slots : c === 'armor' ? state.armor : boxSlots(c);
+    if (c === 'armor' && state.inv[n] && !BC.armor.fits(state.inv[n], i)) return;
     if (c === 'furnace' && (i === CT.OUT || (i === CT.FUEL && state.inv[n] && !BC.smelting.fuelTicks(state.inv[n].id)))) return;
     if (!src || (c === 'inv' && i === n)) return;
     const t = src[i]; src[i] = state.inv[n]; state.inv[n] = t;
     U.renderInventory();
   };
   G.dropFromSlot = function (c, i, all) {
-    const src = c === 'inv' ? state.inv : c === 'craft' ? state.craft.slots : boxSlots(c);
+    const src = c === 'inv' ? state.inv : c === 'craft' ? state.craft.slots : c === 'armor' ? state.armor : boxSlots(c);
     if (!src || !src[i]) return;
     const s = src[i], n = all ? s.count : 1;
     E.toss(Object.assign({}, s, { count: n }), eyePos().clone(), lookDir(), 2);
@@ -987,8 +1101,10 @@
     if (player.dead) { cam.rotation.z = 0.5; cam.position.y = player.p.y + 0.3; }
     const targetFov = settings.fov * (player.sprinting && !reduceMotion() ? 1.12 : 1);
     if (Math.abs(cam.fov - targetFov) > 0.05) { cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 8); cam.updateProjectionMatrix(); }
-    R.updateSky(dayTime, paused ? 0 : dt, player.eyeInWater, W.rd);
+    R.updateSky(dayTime, paused ? 0 : dt, player.eyeInWater, Math.max(W.rd, settings.renderDistance));
+    if (FT) { FT.update(player.p.x, player.p.z, settings.renderDistance, W.rd, paused ? 1 : 3, W.readyRadius(player.p.x, player.p.z)); FT.setLight(R.daylight(dayTime) * 0.95); }
     R.updateParticles(paused ? 0 : dt);
+    if (MB) MB.frame(Math.min(1, acc / TICK), { daylight: R.daylight(dayTime), range: Math.max(64, W.rd * CS) });
     run(hooks.frame, G, paused ? 0 : dt);
     $('t-fly').classList.toggle('on', player.fly);
     $('water-tint').hidden = !player.eyeInWater;
@@ -997,7 +1113,7 @@
     if (hk !== heldKey) { heldKey = hk; equipT = 0; R.setHeld(hs); }
     equipT = Math.min(1, equipT + dt / 0.2);
     R.animateHeld({ swing: swingT, equip: equipT, eating: state.eating > 0, time: performance.now() / 1000, bob, bobAmp, reduceMotion: reduceMotion() });
-    if (screen === 'play') U.updateHud({ inv: state.inv, sel: state.sel, mode: state.mode, stats: state.stats, eating: state.eating, reduceMotion: reduceMotion() });
+    if (screen === 'play') U.updateHud({ inv: state.inv, armor: state.armor, sel: state.sel, mode: state.mode, stats: state.stats, eating: state.eating, reduceMotion: reduceMotion() });
     R.render(screen === 'play' && !hudHidden && !player.dead);
 
     unloadT += dt; if (unloadT > 1) { unloadT = 0; W.unloadFar(player.p.x, player.p.z); }

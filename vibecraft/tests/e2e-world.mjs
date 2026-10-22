@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Blockcraft world-systems end-to-end tests (Playwright + headless Chromium, software WebGL): light, torches,
+// Vibecraft world-systems end-to-end tests (Playwright + headless Chromium, software WebGL): light, torches,
 // saplings, grass, falling blocks, day and night.
 //
 //   node tests/e2e-world.mjs            run every scenario
 //   node tests/e2e-world.mjs A C        run only scenarios A and C
 //
-// Environment: E2E_SHOTS=<dir> for screenshots (default: <tmp>/blockcraft-e2e-world),
+// Environment: E2E_SHOTS=<dir> for screenshots (default: <tmp>/vibecraft-e2e-world),
 // PLAYWRIGHT_MODULE=<path> if Playwright is not resolvable from here (defaults to the global install).
 // Worlds are created with BC.game.createWorld(); placing and breaking go through the game's own mouse handling
 // (right-click places the held block with its placement rules, left-click breaks). Hooks on BC.game are used to set
@@ -23,7 +23,7 @@ const { chromium } = pw;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GAME_URL = pathToFileURL(path.join(ROOT, 'index.html')).href;
-const SHOTS = process.env.E2E_SHOTS || path.join(os.tmpdir(), 'blockcraft-e2e-world');
+const SHOTS = process.env.E2E_SHOTS || path.join(os.tmpdir(), 'vibecraft-e2e-world');
 const LAUNCH_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 const VIEWPORT = { width: 960, height: 600 };
 const SCENARIO_TIMEOUT = 300000;
@@ -231,7 +231,7 @@ async function runScenario(browser, sc) {
 async function main() {
   const only = process.argv.slice(2).filter(a => !a.startsWith('--')).map(a => a.toUpperCase());
   const list = SCENARIOS.filter(s => !only.length || only.includes(s.id));
-  console.log(`Blockcraft world-systems e2e: ${GAME_URL}\nScreenshots: ${SHOTS}\n`);
+  console.log(`Vibecraft world-systems e2e: ${GAME_URL}\nScreenshots: ${SHOTS}\n`);
   let browser = await chromium.launch({ args: LAUNCH_ARGS });
   const results = [], T0 = Date.now();
   for (const sc of list) {

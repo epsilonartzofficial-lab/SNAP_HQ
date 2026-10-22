@@ -255,6 +255,15 @@
         if (now() - t0 > budget) return;
       }
     }
+    // Radius (in chunks) of the disc around (px, pz) whose chunks are all generated and meshed.
+    function readyRadius(px, pz) {
+      const pcx = Math.floor(px) >> 4, pcz = Math.floor(pz) >> 4;
+      for (const [dx, dz, d] of offsets) {
+        const ch = chunkAt(pcx + dx, pcz + dz);
+        if (!ch || ch.dirty) return Math.max(0, Math.sqrt(d) - 1);
+      }
+      return rd;
+    }
     function unloadFar(px, pz) {
       const pcx = Math.floor(px) >> 4, pcz = Math.floor(pz) >> 4, lim = rd + 3;
       const far = c => Math.abs(c.cx - pcx) > lim || Math.abs(c.cz - pcz) > lim;
@@ -307,7 +316,7 @@
     const getLight = (x, y, z, daylight) => light.getLight(Math.floor(x), Math.floor(y), Math.floor(z), daylight);
 
     const api = {
-      record, gen, chunks, edits, getBlock, setBlock, chunkReady, hasChunk, setRenderDistance, stream, unloadFar, prime, surfaceY, dispose, packEdits,
+      record, gen, chunks, edits, getBlock, setBlock, chunkReady, hasChunk, setRenderDistance, stream, readyRadius, unloadFar, prime, surfaceY, dispose, packEdits,
       get rd() { return rd; },
       // world systems
       light, getSkyLight, getBlockLight, getLight, batch, tick, frame, falling, randomTickAt, randomTickSpeed: RANDOM_TICK_SPEED,

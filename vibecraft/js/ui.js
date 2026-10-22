@@ -65,7 +65,7 @@
       el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); G.selectSlot(i); });
       hb.appendChild(el); hot.push(el);
     }
-    for (const id of ['hearts', 'food', 'air']) { const box = $(id); box.textContent = ''; for (let i = 0; i < 10; i++) { const s = document.createElement('span'); s.className = 'hud-ico'; box.appendChild(s); } }
+    for (const id of ['hearts', 'food', 'air', 'armor-bar']) { const box = $(id); box.textContent = ''; for (let i = 0; i < 10; i++) { const s = document.createElement('span'); s.className = 'hud-ico'; box.appendChild(s); } }
   };
   let last = {};
   function iconRow(boxId, value, kind, force) {
@@ -85,6 +85,8 @@
       const h = Math.ceil(st.stats.health), f = st.stats.food;
       if (last.h !== h) { iconRow('hearts', h, 'heart'); last.h = h; }
       if (last.f !== f) { iconRow('food', f, 'food'); last.f = f; }
+      const ap = BC.armor ? BC.armor.totals(st.armor).points : 0;
+      if (last.ap !== ap) { last.ap = ap; $('armor-bar').style.visibility = ap > 0 ? 'visible' : 'hidden'; if (ap > 0 && T.HUD.armor_full) iconRow('armor-bar', ap, 'armor'); }
       $('hearts').classList.toggle('low', h <= 4 && !st.reduceMotion && Math.floor(Date.now() / 150) % 2 === 0);
       $('hearts').classList.toggle('hit', st.stats.hurtTime > 5);
       const air = st.stats.air, showAir = air < BC.survival.MAX_AIR;
@@ -149,7 +151,7 @@
     $('transfer-h').textContent = mode === 'export' ? 'Export world' : 'Import world';
     $('transfer-help').textContent = mode === 'export'
       ? 'This text is a full copy of the world. Keep it somewhere safe as a backup, or import it in another browser.'
-      : 'Paste world text exported from Blockcraft, or choose a saved .json file.';
+      : 'Paste world text exported from Vibecraft, or choose a saved .json file.';
     const ta = $('transfer-text'); ta.value = text || ''; ta.readOnly = mode === 'export';
     $('btn-transfer-go').textContent = mode === 'export' ? 'Copy' : 'Import';
     $('transfer-file-label').hidden = mode === 'export';
@@ -157,7 +159,7 @@
     const dl = $('transfer-download'); dl.hidden = mode !== 'export' || !!(window.claude);
     if (mode === 'export') {
       try { if (dl.href.startsWith('blob:')) URL.revokeObjectURL(dl.href); dl.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); } catch (e) { dl.hidden = true; }
-      dl.download = (name || 'world').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() + '.blockcraft.json';
+      dl.download = (name || 'world').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() + '.vibecraft.json';
     }
     $('transfer-status').textContent = '';
     G.setScreen('transfer');
@@ -188,7 +190,7 @@
   };
   U.resetCreate = function () {
     $('cw-name').value = 'New World'; $('cw-seed').value = ''; $('cw-mode-survival').checked = true; $('cw-difficulty').value = '2';
-    $('cw-cheats').checked = false; $('cw-mode-help').textContent = modeHelp.survival;
+    $('cw-cheats').checked = false; $('cw-mode-help').textContent = modeHelp.survival; $('cw-gen').value = BC.worldgen.has(2) ? '2' : '1';
   };
   for (const id of ['cw-mode-survival', 'cw-mode-creative']) $(id).addEventListener('change', e => {
     const m = e.target.value; $('cw-mode-help').textContent = modeHelp[m]; $('cw-cheats').checked = m === 'creative';
@@ -200,6 +202,7 @@
       mode: $('cw-mode-creative').checked ? 'creative' : 'survival',
       difficulty: +$('cw-difficulty').value,
       seedText: $('cw-seed').value,
+      gen: +$('cw-gen').value,
       cheats: $('cw-cheats').checked,
     });
   });
@@ -278,9 +281,14 @@
       top.append(col, refs.progress, out);
     } else if (creativePalette) {
       const pal = document.createElement('div'); pal.className = 'palette';
-      IT.all().forEach(d => { const el = slotEl('palette', d.id); fillSlot(el, { id: d.id, count: 1 }); pal.appendChild(el); refs.palette.push(el); });
+      IT.all().forEach(d => { const el = slotEl('palette', d.id); fillSlot(el, { id: d.id, count: 1 }); el.dataset.name = d.name.toLowerCase(); pal.appendChild(el); refs.palette.push(el); });
+      // search box: filters the palette by name (keys typed here don't reach the game)
+      const search = document.createElement('input'); search.className = 'palette-search'; search.type = 'search'; search.placeholder = `Search ${refs.palette.length} items`;
+      search.addEventListener('input', () => { const q = search.value.trim().toLowerCase(); for (const el of refs.palette) el.hidden = !!q && !el.dataset.name.includes(q); });
+      search.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') search.blur(); });
+      const wrap = document.createElement('div'); wrap.className = 'palette-wrap'; wrap.append(search, pal);
       const trash = slotEl('trash', 0, 'trash'); trash.textContent = 'Bin'; trash.title = 'Drop an item here to delete it';
-      top.append(pal, trash);
+      top.append(wrap, trash);
     } else {
       const n = G.state.craft.n;
       const grid = document.createElement('div'); grid.className = 'craft-grid'; grid.style.gridTemplateColumns = `repeat(${n}, var(--islot))`;
@@ -288,6 +296,17 @@
       const arrow = document.createElement('span'); arrow.className = 'craft-arrow'; arrow.textContent = '→'; arrow.setAttribute('aria-hidden', 'true');
       refs.result = slotEl('result', 0, 'result');
       top.append(grid, arrow, refs.result);
+    }
+    refs.armor = [];
+    if (kind === 'player') {
+      // Equipment: helmet, chestplate, leggings, boots (faint outlines while empty)
+      const col = document.createElement('div'); col.className = 'armor-col';
+      for (let i = 0; i < 4; i++) {
+        const el = slotEl('armor', i, 'armor-slot');
+        if (T.ARMOR_SLOT_ICONS) el.style.backgroundImage = `url(${T.ARMOR_SLOT_ICONS[BC.armor.PIECES[i].key]})`;
+        col.appendChild(el); refs.armor.push(el);
+      }
+      top.prepend(col);
     }
     const main = $('inv-main'), hotRow = $('inv-hot'); main.textContent = ''; hotRow.textContent = '';
     refs.main = []; refs.hot = [];
@@ -301,6 +320,7 @@
     refs.main.forEach((el, k) => fillSlot(el, st.inv[k + 9]));
     refs.hot.forEach((el, k) => { fillSlot(el, st.inv[k]); el.classList.toggle('sel', k === st.sel); });
     refs.craft.forEach((el, k) => fillSlot(el, st.craft.slots[k]));
+    (refs.armor || []).forEach((el, k) => fillSlot(el, st.armor[k]));
     if (refs.result) { const r = G.craftResult(); fillSlot(refs.result, r ? r.stack : null); }
     const box = st.open && st.open.c;
     if (box) {

@@ -1,5 +1,5 @@
 'use strict';
-// Blockcraft core: shared namespace, constants, deterministic utilities and noise.
+// Vibecraft core: shared namespace, constants, deterministic utilities and noise.
 // Every script attaches to the global `BC` object so the game runs from file:// without a bundler.
 (function (root) {
   const BC = root.BC = root.BC || {};

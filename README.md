@@ -11,8 +11,8 @@ one small pull request at a time.
 - Make small, safe changes
 - Get comfortable with git branches
 
-## Blockcraft
+## Vibecraft
 
-`blockcraft/` is a Minecraft-inspired survival sandbox for the browser. Open `blockcraft/index.html` to play.
-See [blockcraft/README.md](blockcraft/README.md) for how to run, test and build it, and
-[the feature checklist](blockcraft/docs/FEATURES.md) for what works today.
+`vibecraft/` is a Minecraft-inspired survival sandbox for the browser. Open `vibecraft/index.html` to play.
+See [vibecraft/README.md](vibecraft/README.md) for how to run, test and build it, and
+[the feature checklist](vibecraft/docs/FEATURES.md) for what works today.

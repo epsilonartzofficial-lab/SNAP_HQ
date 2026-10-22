@@ -1,6 +1,6 @@
 # Biome system design (200+ outcomes)
 
-**Status: design only. None of this is implemented yet.** Blockcraft currently uses generator version 1, the v0.1
+**Status: design only. None of this is implemented yet.** Vibecraft currently uses generator version 1, the v0.1
 terrain: one height function with plains, forest density, deserts, beaches, sea floor and snowy peaks, and no
 biome data at all. The target of 200 or more outcomes is a design goal from the project owner's world-generation
 notes. It is separate from Minecraft's own biome count.

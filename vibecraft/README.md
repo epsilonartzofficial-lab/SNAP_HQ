@@ -1,4 +1,4 @@
-# Blockcraft
+# Vibecraft
 
 A survival sandbox for the browser, inspired by Minecraft Java Edition. All code, textures and names are original.
 
@@ -24,7 +24,7 @@ Q to drop.
 ```
 npm test             # 104 unit tests for the rules (Node 22, no dependencies)
 npm run e2e          # 9 browser scenarios in headless Chromium (needs Playwright)
-npm run build        # dist/blockcraft.html (single offline file) and dist/artifact.html
+npm run build        # dist/vibecraft.html (single offline file) and dist/artifact.html
 ```
 
 | Path | Contents |

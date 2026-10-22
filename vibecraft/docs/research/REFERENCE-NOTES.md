@@ -1,4 +1,4 @@
-# Blockcraft reference notes
+# Vibecraft reference notes
 
 Compiled 2026-09-28 for Stages 2 to 6. Factual research only, no game code. Gameplay reference: Minecraft Java Edition
 **26.3 "Wilderness Bound"**, released 2026-09-15.
@@ -124,7 +124,7 @@ Dates and version ids are [P]. "New content" is from registry diffs [P]; names a
 | 26.2 | Chaos Cubed | 2026-06-16 | `sulfur_caves` biome, sulfur cube mob, sulfur and cinnabar block families, 5 attributes (bounciness, friction, air drag, name tag distances), new speleothem features replacing dripstone features | Low. A new cave biome and mob. [S] friends list, F3+F4 sets default game mode, touchscreen mode removed. |
 | 26.3 | Wilderness Bound | 2026-09-15 | see 1.2 to 1.5 | Low: straw bed (sleep once, no spawn), sitting. Large technical change: fuel, brewing, worldgen data and mob spawn tables moved into data. |
 
-Conclusion. I compared an early 1.21 decompile (`Yeet-Masta/MCP-1.21`, "MCP for 1.21", exact patch version not stated) with 26.3 for the mechanics Blockcraft needs next. Logic is identical
+Conclusion. I compared an early 1.21 decompile (`Yeet-Masta/MCP-1.21`, "MCP for 1.21", exact patch version not stated) with 26.3 for the mechanics Vibecraft needs next. Logic is identical
 for: `FoodData.tick` and the exhaustion table, `CombatRules` armor formula, `MobCategory` caps and despawn distances,
 `Monster.isDarkEnoughToSpawn`, `CropBlock` growth, farmland hydration, water and lava tick delays and drop-offs, and the `Player.attack`
 cooldown, crit and sprint-knockback code [P]. The one core change I found is **fall damage**: that 1.21 source used `Mth.ceil((fall - 3) * multipliers)`;
@@ -383,7 +383,7 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
 - Fall damage: `floor((fallDistance + 1e-6 - safe_fall_distance) * damageModifier * fall_damage_multiplier)`, with `safe_fall_distance` 3.0 and the
   multiplier 1.0 by default [P]. A fall of less than 4.0 blocks does nothing, exactly 4.0 deals 1, and each further block adds 1. So a 3.5-block
   drop is free and a jump off a 3-block ledge (fall about 4.25) deals 1. In an early 1.21 build the formula was `ceil(fall - 3)`, which gave 1 for a
-  3.5-block drop and 2 for the jump [P: early 1.21 source]. Blockcraft's Stage 1 acceptance text uses the `ceil` form, so it is one step harsher than 26.3
+  3.5-block drop and 2 for the jump [P: early 1.21 source]. Vibecraft's Stage 1 acceptance text uses the `ceil` form, so it is one step harsher than 26.3
   for non-integer falls. Water and some blocks reset or scale fall distance (not read).
 - Drowning: air supply 300 ticks (15 s), minus 1 per tick with the eyes in water (Respiration randomly skips ticks), plus 4 per tick when out
   of water. When it reaches -20 (one second after 0) the entity takes 2 damage, air is set back to 0, and this repeats every 20 ticks [P].
@@ -402,7 +402,7 @@ cannot drop anything from all three tags; stone and copper fail on the last two;
 - Biomes are looked up on a 4x4x4 block grid (quart positions) with a seeded jitter when read at block level (`BiomeManager`,
   zoom 4). Each climate noise is sampled at `x * 0.25` after a small domain shift (an `offset` noise with first octave -3, times 4;
   about 5 blocks at one standard deviation [D]) that roughens borders [P].
-- World: min Y -64, height 384, sea level 63. Blockcraft is 80 tall with sea level 24, so every height number below needs rescaling.
+- World: min Y -64, height 384, sea level 63. Vibecraft is 80 tall with sea level 24, so every height number below needs rescaling.
 - World spawn (`spawn_target` in the noise settings) is searched only where continentalness is at least -0.11 (land) and weirdness is
   outside (-0.16, 0.16), that is away from river valleys [P].
 - Large Biomes preset: the same tables with noise first octaves 2 lower for continentalness, erosion, temperature and humidity
@@ -648,7 +648,7 @@ Underground biomes are separate boxes: `dripstone_caves` (continentalness 0.8 to
 - **Determinism and chunk-border test**: generate the same 32x32 area from four chunk offsets; all fields, biomes and blocks must be identical.
 - **Speed**: milliseconds per chunk over 1,000 chunks, median and p99, in Node and in a browser worker.
 
-## 5. Recommendations for Blockcraft (16x16 chunks, 80 blocks high, sea level 24, JavaScript)
+## 5. Recommendations for Vibecraft (16x16 chunks, 80 blocks high, sea level 24, JavaScript)
 
 1. Copy vanilla's separation of shape and label: three continuous fields (continentalness, erosion, folded ridges) drive height through splines;
    temperature and humidity plus relief class drive biome labels. This keeps terrain smooth across biome borders.
@@ -681,7 +681,7 @@ Underground biomes are separate boxes: `dripstone_caves` (continentalness 0.8 to
     a save made in one browser regenerates identically in another and in Node tests. Keep golden chunk hashes per generator version.
 11. Sky and light: model day length 24000 ticks with sky light 15 by day and 4 at night, linear ramps, weather blending toward 4; sleeping
     allowed when sky darkening is at least 4 (so thunderstorms allow sleeping, rain alone does not). Block light 15 max, minus 1 per step; torch 14.
-12. Spawning: use vanilla's rule shape but scale caps to Blockcraft's loaded chunk count (`cap = max * chunks / 289`) and lower the hostile
+12. Spawning: use vanilla's rule shape but scale caps to Vibecraft's loaded chunk count (`cap = max * chunks / 289`) and lower the hostile
     maximum (70 vanilla) for JavaScript pathfinding cost (for example 20 to 30 near the player). Monsters: block light 0 and dark enough;
     passive: grass and light above 8, every 20 s only. Despawn beyond 128 blocks (or render distance) and randomly beyond 32 after 30 s.
 13. Fuel and smelting: implement fuel as `ticks` per item from data (coal 1600, planks and logs 300, sticks 100, wooden tools 200,
@@ -702,7 +702,7 @@ Underground biomes are separate boxes: `dripstone_caves` (continentalness 0.8 to
     relief slices and a variant flag; the analogue here is about 45 base biomes plus a small set of modifier patches (wet, dry, rocky, coastal,
     old growth, and so on), each patch listing only its differences from the base (surface blocks, tree weights, plant palette, water
     pools), as Valheim's alt biomes do. A compatibility table decides which patches may combine (`BIOMES.md` already proposes this).
-20. Do not treat the mirror-derived tables as licensed data. Write Blockcraft's own biome names, colours and tables; keep only the structural
+20. Do not treat the mirror-derived tables as licensed data. Write Vibecraft's own biome names, colours and tables; keep only the structural
     ideas (bands, slices, nearest lookup, layered rules). The roadmap already requires original names and art.
 
 ## 6. Unverified or uncertain items

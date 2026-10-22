@@ -1,4 +1,4 @@
-// Blockcraft unit tests. Zero dependencies: run with `node tests/unit.mjs [name filter]`.
+// Vibecraft unit tests. Zero dependencies: run with `node tests/unit.mjs [name filter]`.
 //
 // The pure-logic modules (core, blocks, items, inventory, crafting, survival, worldgen, save) are loaded
 // into a Node VM context by load.mjs and checked against the reference game's rules, the v0.1 terrain
@@ -217,7 +217,7 @@ suite('worldgen', () => {
   });
 
   test('unknown generator versions are rejected', () => {
-    assert.throws(() => BC.worldgen.create(2, 1), /Unknown world generator version 2/);
+    assert.throws(() => BC.worldgen.create(99, 1), /Unknown world generator version 99/);
     assert.throws(() => BC.worldgen.create(0, 1));
   });
 
@@ -384,14 +384,17 @@ suite('blocks', () => {
     for (const b of [B.GLASS, B.WATER, B.BEDROCK]) same(BC.blocks.drops(b, true, seq()), []);
   });
 
-  test('drops: leaves roll apple (1/20) then stick (1/50, 1-2) with the injected rand', () => {
+  test('drops: leaves roll apple (1/200) then stick (1/50, 1-2) with the injected rand', () => {
     const d = (...r) => BC.blocks.drops(B.OAK_LEAVES, true, seq(...r));
-    same(d(0.9, 0.9), []);
-    same(d(0.01, 0.9), [{ key: 'apple', count: 1 }]);
-    same(d(0.9, 0.01, 0.3), [{ key: 'stick', count: 2 }]);
-    same(d(0.9, 0.01, 0.7), [{ key: 'stick', count: 1 }]);
-    same(d(0, 0, 0), [{ key: 'apple', count: 1 }, { key: 'stick', count: 2 }]);
-    same(d(0.05, 0.02), [], 'thresholds are strict');
+    // order: apple roll, stick roll (+ count roll), sapling roll
+    same(d(0.9, 0.9, 0.9), []);
+    same(d(0.004, 0.9, 0.9), [{ key: 'apple', count: 1 }]);
+    same(d(0.01, 0.9, 0.9), [], 'apples are 1 in 200');
+    same(d(0.9, 0.01, 0.3, 0.9), [{ key: 'stick', count: 2 }]);
+    same(d(0.9, 0.01, 0.7, 0.9), [{ key: 'stick', count: 1 }]);
+    same(d(0.9, 0.9, 0.01), [{ key: 'oak_sapling', count: 1 }]);
+    same(d(0, 0, 0, 0), [{ key: 'apple', count: 1 }, { key: 'stick', count: 2 }, { key: 'oak_sapling', count: 1 }]);
+    same(d(0.005, 0.02, 0.05), [], 'thresholds are strict');
   });
 
   test('every block drop names a registered item', () => {
@@ -1014,6 +1017,33 @@ suite('survival', () => {
 
 // ════════════════════════════════════════════════════════════════════════════ save
 
+suite('combat', () => {
+  const close = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg || ''} expected ${b}, got ${a}`);
+  test('armor absorbs damage by the reference formula (points, toughness, 20 % floor)', () => {
+    close(SV.armorReduce(10, 0, 0), 10, 'no armor');
+    close(SV.armorReduce(10, 20, 0), 4, 'full iron+ : 15 of 25 absorbed');
+    close(SV.armorReduce(20, 8, 2), 20 * (1 - 1.6 / 25), 'big hits fall back to 20 % of the armor');
+    close(SV.armorReduce(4, 15, 0), 4 * (1 - 13 / 25), 'iron set against a 4-damage hit');
+  });
+  test('difficulty scales damage from creatures', () => {
+    same([0, 1, 2, 3].map(d => SV.scaleDamage(6, d)), [0, 4, 6, 9]);
+  });
+  test('armor pieces fit only their own slot and add up', () => {
+    const mk = k => IT.make(k, 1), A = BC.armor;
+    assert.ok(A.fits(mk('iron_chestplate'), 1) && !A.fits(mk('iron_chestplate'), 0) && !A.fits(mk('stick'), 2));
+    same(A.totals([mk('iron_helmet'), mk('iron_chestplate'), mk('iron_leggings'), mk('iron_boots')]), { points: 15, toughness: 0 });
+    same(A.totals([mk('diamond_helmet'), null, null, mk('leather_boots')]), { points: 4, toughness: 2 });
+  });
+  test('beds are two blocks and recipes make armor and beds', () => {
+    assert.ok(IT.key('bed').placesBed);
+    const ids = keys => keys.map(k => k ? IT.key(k).id : 0), W = 'wool', P = 'oak_planks', I = 'iron_ingot';
+    const r = CR.match(ids([0, 0, 0, W, W, W, P, P, P]), 3);
+    assert.ok(r && IT.get(r.outId).key === 'bed', 'three wool over three planks make a bed');
+    const c = CR.match(ids([I, 0, I, I, I, I, I, I, I]), 3);
+    assert.ok(c && IT.get(c.outId).key === 'iron_chestplate', 'eight ingots make a chestplate');
+  });
+});
+
 suite('save', () => {
   const V1_SAVE = {
     seed: 4051750246, edits: { '0,0': [5, 3] },
@@ -1050,7 +1080,7 @@ suite('save', () => {
     same(p.inventory.slice(0, 4), [[B.DIRT, 64], null, null, [300, 1, 4]]);
     assert.equal(p.inventory.length, 36);
     same([p.stats.health, p.stats.food, p.stats.air], [7, 20, 300]);
-    storage.setItem(SAVE.KEY_WORLD(w.id), JSON.stringify(Object.assign({}, w, { gen: 2 })));
+    storage.setItem(SAVE.KEY_WORLD(w.id), JSON.stringify(Object.assign({}, w, { gen: 99 })));
     const r = store.loadWorld(w.id);
     assert.equal(r.ok, false);
     assert.match(r.error, /newer version/);
@@ -1106,7 +1136,7 @@ suite('save', () => {
     for (const text of ['', 'not json', 'null', '42', '[]', '{}', '{"v":1}', JSON.stringify({ v: 2, gen: 9 })]) {
       const r = store.importWorld(text);
       assert.equal(r.ok, false, `accepted ${JSON.stringify(text)}`);
-      assert.match(r.error, /not a Blockcraft world/);
+      assert.match(r.error, /not a Vibecraft world/);
     }
     assert.equal(store.listWorlds().length, 0);
   });

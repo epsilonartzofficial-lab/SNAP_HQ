@@ -228,7 +228,7 @@
   command('pos', { help: 'Show your position, chunk and biome.', run() { const p = P().p; return `${fmt(p.x)} ${fmt(p.y)} ${fmt(p.z)} · chunk ${Math.floor(p.x) >> 4}, ${Math.floor(p.z) >> 4}${W().gen.sample ? ' · ' + biomeName(p.x, p.z) : ''}`; } });
   command('difficulty', { usage: '<peaceful|easy|normal|hard>', args: [() => ['peaceful', 'easy', 'normal', 'hard']], help: 'Change difficulty.',
     run([d]) { const i = ['peaceful', 'easy', 'normal', 'hard'].indexOf(d); if (i < 0) fail('peaceful, easy, normal or hard'); G.record.difficulty = i; return 'Difficulty set to ' + d; } });
-  command('rd', { usage: '<2-12>', help: 'Render distance in chunks.', run([n]) { const v = Number(n); if (!(Number.isInteger(v) && v >= 2 && v <= 12)) fail('Whole number 2–12'); G.applySettings({ renderDistance: v }); return 'Render distance ' + v; } });
+  command('rd', { usage: '<2-64>', help: 'View distance in chunks (full detail up to 16, distant terrain beyond).', run([n]) { const v = Number(n); if (!(Number.isInteger(v) && v >= 2 && v <= 64)) fail('Whole number 2–64'); G.applySettings({ renderDistance: v }); return 'Render distance ' + v; } });
   command('chunks', { usage: '[on|off]', args: [() => ['on', 'off']], help: 'Show chunk borders.', run([v]) { view.chunks = onOff(v, view.chunks); updateBorders(true); return 'Chunk borders ' + (view.chunks ? 'on' : 'off'); } });
   command('inspect', { usage: '[on|off]', args: [() => ['on', 'off']], help: 'Show what you are looking at: block, position, light, biome and climate fields.', run([v]) { view.inspect = onOff(v, view.inspect); $('dev-inspector').hidden = !view.inspect; return 'Inspector ' + (view.inspect ? 'on' : 'off'); } });
   command('biome', { help: 'Show the biome and climate fields where you stand.',
@@ -439,7 +439,7 @@
       if (h) {
         rows.push(`Looking at ${DEFS[h.id].name} (${DEFS[h.id].key}, id ${h.id}) at ${h.x} ${h.y} ${h.z}`);
         const ax = h.x + h.n[0], ay = h.y + h.n[1], az = h.z + h.n[2];
-        if (L && L.getSkyLight) rows.push(`Light on that face: sky ${L.getSkyLight(w, ax, ay, az)} · block ${L.getBlockLight(w, ax, ay, az)}`);
+        if (w.getSkyLight) rows.push(`Light on that face: sky ${w.getSkyLight(ax, ay, az)} · block ${w.getBlockLight(ax, ay, az)}`);
       } else rows.push('Looking at nothing within reach');
       if (w.gen.sample) {
         const s = w.gen.sample(Math.floor(p.x), Math.floor(p.z));
@@ -452,6 +452,50 @@
   });
   BC.hooks.worldUnloaded.push(() => { view.chunks = false; updateBorders(true); P().god = false; P().noclip = false; P().speedMul = 1; P().flyMul = 1; G.dev.timeScale = 1; G.dev.freezeTime = false; });
   BC.hooks.worldLoaded.push(() => { $('dev-touch-btn').hidden = !G.dev.allowed(); if (G.dev.allowed()) log('Dev toolkit ready: press / or T for commands, F4 for the panel. /help lists commands.', 'ok'); });
+
+  // ---------------------------------------------------------------- creatures
+  const mobTypes = () => (BC.mobs ? BC.mobs.TYPES : []);
+  command('summon', { usage: '<creature> [count]', args: [mobTypes], help: 'Spawn creatures in front of you. /summon pig 3',
+    run([t, n]) {
+      const MB = G.mobs; if (!MB) fail('Creatures are not available in this world');
+      if (!BC.mobs.SPECIES[t]) fail(`Unknown creature "${t}". Press Tab for names.`);
+      const k = n == null ? 1 : Number(n); if (!(Number.isInteger(k) && k >= 1 && k <= 50)) fail('Count 1–50');
+      const p = P().p, d = G.dev.lookDir();
+      for (let i = 0; i < k; i++) {
+        const x = p.x + d.x * 3 + (Math.random() - 0.5) * 2, z = p.z + d.z * 3 + (Math.random() - 0.5) * 2;
+        MB.spawn(t, x, G.dev.surfaceY(x, z), z, { persistent: true });
+      }
+      return `Summoned ${k} ${BC.mobs.SPECIES[t].name}`;
+    } });
+  command('killall', { usage: '[creature|hostile|passive]', args: [() => ['hostile', 'passive'].concat(mobTypes())], help: 'Remove creatures (all by default).',
+    run([t]) {
+      const MB = G.mobs; if (!MB) fail('Creatures are not available in this world');
+      const doomed = MB.list.filter(m => !t || m.type === t || m.sp.cat === t);
+      for (const m of doomed) MB.remove(m);
+      return `Removed ${doomed.length} creatures`;
+    } });
+  command('spawning', { usage: '[on|off]', args: [() => ['on', 'off']], help: 'Turn natural creature spawning on or off.',
+    run([v]) { const MB = G.mobs; if (!MB) fail('Creatures are not available'); MB.config.spawning = onOff(v, MB.config.spawning); return 'Spawning ' + (MB.config.spawning ? 'on' : 'off'); } });
+  command('mobs', { help: 'Count creatures by type.',
+    run() { const MB = G.mobs; if (!MB) fail('Creatures are not available'); const c = {}; for (const m of MB.list) c[m.type] = (c[m.type] || 0) + 1; return Object.keys(c).length ? Object.entries(c).map(([k, v]) => `${k}: ${v}`) : 'No creatures loaded'; } });
+  Extra.Creatures = () => {
+    const MB = G.mobs;
+    if (!MB) return [label('Creatures are not available in this world.')];
+    const spawnRow = row(mobTypes().map(t => btn(BC.mobs.SPECIES[t].name, '/summon ' + t + ' 1')));
+    const cfg = MB.config;
+    const sl = (name, key, min, max, step) => {
+      const l = document.createElement('label'); l.className = 'dev-slider';
+      const o = document.createElement('output'), r = document.createElement('input');
+      r.type = 'range'; r.min = min; r.max = max; r.step = step; r.value = cfg[key]; o.textContent = cfg[key];
+      r.addEventListener('input', () => { cfg[key] = +r.value; o.textContent = r.value; });
+      l.append(name + ' ', o, r); return l;
+    };
+    return [label('Spawn one in front of you'), spawnRow,
+      row([btn('Spawning on/off', '/spawning'), btn('Remove hostiles', '/killall hostile'), btn('Remove all', '/killall'), btn('Count', '/mobs')]),
+      sl('Passive spawn rate ×', 'passiveMul', 0, 5, 0.25), sl('Hostile spawn rate ×', 'hostileMul', 0, 5, 0.25),
+      sl('Passive cap', 'passiveCap', 0, 60, 1), sl('Hostile cap', 'hostileCap', 0, 120, 1),
+      label('Spawn tables per biome live in js/mobs.js (SPAWN_TABLES); biome worlds pick the table from the biome you are in.')];
+  };
 
   BC.dev = { command, exec, log, CmdError, fail, setCells, view };
 })(window);

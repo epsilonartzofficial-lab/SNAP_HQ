@@ -920,6 +920,18 @@
       }
     }
     const biomes = OUTCOMES.map(o => ({ key: o.key, name: o.name, family: o.family, base: o.base, variant: o.variant, color: o.color }));
+    // Bulk surface for distant terrain: fn(x, z, height, topBlockKey, biome, treeDensity) for columns on a grid of
+    // `step` blocks from (xa, za) to (xb, zb). Slope (for steep rock faces) is measured across one grid step.
+    function surfaceScan(xa, za, xb, zb, step, fn) {
+      const Cc = makeColumns(xa - step, za - step, xb + step, zb + step, step);
+      for (let j = 1; j < Cc.ch - 1; j++) for (let i = 1; i < Cc.cw - 1; i++) {
+        const o = i + j * Cc.cw, H = Cc.H[o], x = xa + (i - 1) * step, z = za + (j - 1) * step;
+        const slope = max(abs(Cc.H[o - 1] - H), abs(Cc.H[o + 1] - H), abs(Cc.H[o - Cc.cw] - H), abs(Cc.H[o + Cc.cw] - H)) / step;
+        surface(Cc, o, x, z, slope);
+        const key = S.top === BANDS_ID ? BB.DEFS[bandAt(H, round(1.6 * Nb.n2(x / 80 + 3.3, z / 80)))].key : BB.DEFS[S.top].key;
+        fn(x, z, H, key, biomes[Cc.L[o]], Cc.TREE[o]);
+      }
+    }
     // Nearest column of an outcome: scan square rings of 128-block tiles outward, on a grid of `step` blocks.
     function locate(key, x, z, maxRadius) {
       const want = OI[key];
@@ -978,7 +990,7 @@
     function terrainAt(x, z) { const s = sample(x, z); return [s.height, s.biome.key]; }
 
     return {
-      version: 2, seed, preset: pkey, presetParams: Object.assign({}, P), generateChunk, findSpawn, sample, terrainAt, biomes, locate, scan,
+      version: 2, seed, preset: pkey, presetParams: Object.assign({}, P), generateChunk, findSpawn, sample, terrainAt, biomes, locate, scan, surfaceScan,
       outcomeIndex: key => OI[key], families: FAMILIES.map(f => Object.assign({}, f)), quantiles: Q,
     };
   }

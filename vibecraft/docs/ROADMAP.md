@@ -1,6 +1,6 @@
-# Blockcraft roadmap
+# Vibecraft roadmap
 
-Blockcraft is a browser survival sandbox inspired by Minecraft Java Edition. The gameplay reference is the
+Vibecraft is a browser survival sandbox inspired by Minecraft Java Edition. The gameplay reference is the
 latest stable Java release, **26.3 "Wilderness Bound" (15 September 2026)**. Snapshots and release candidates
 are not used as a baseline. All code, textures, names and interface art are original.
 

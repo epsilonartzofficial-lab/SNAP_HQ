@@ -1,4 +1,4 @@
-// Blockcraft light engine tests. Zero dependencies: `node tests/lighting.mjs [name filter]`.
+// Vibecraft light engine tests. Zero dependencies: `node tests/lighting.mjs [name filter]`.
 //
 // The engine (js/lighting.js) is checked against a slow, independent reference (a plain FIFO relaxation over every
 // loaded cell) on hand-built scenes and on real v1 terrain, after chunk loads in any order and after random edits.

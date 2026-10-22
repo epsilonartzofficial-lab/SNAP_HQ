@@ -93,8 +93,8 @@
     if (d.drop === null) return [];
     if (d.drop === 'leaves') {
       const out = [];
-      // Reference: apple 1/200, stick 1/50 (1–2). Apples are raised to 1/20 until animals exist as a food source.
-      if (rand() < 1 / 20) out.push({ key: 'apple', count: 1 });
+      // Reference: apple 1/200, stick 1/50 (1–2).
+      if (rand() < 1 / 200) out.push({ key: 'apple', count: 1 });
       if (rand() < 1 / 50) out.push({ key: 'stick', count: 1 + (rand() < 0.5 ? 1 : 0) });
       // Reference: a sapling 1/20. Leaves may name their own sapling (`sapling: key`, or null for none).
       const sap = d.sapling === undefined ? 'oak_sapling' : d.sapling;

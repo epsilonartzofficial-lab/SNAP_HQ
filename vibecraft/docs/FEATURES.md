@@ -1,4 +1,4 @@
-# Blockcraft feature checklist
+# Vibecraft feature checklist
 
 Three states only:
 
@@ -10,7 +10,7 @@ Three states only:
 Reference: Minecraft Java Edition 26.3 (stable, 15 September 2026). Reference numbers and sources are in
 [research/REFERENCE-NOTES.md](research/REFERENCE-NOTES.md).
 
-**Last updated: Stage 1, v0.2.0.** Results: 104/104 unit tests and 9/9 browser scenarios pass (284 s run).
+**Last updated: Stage 3 in progress (creatures, combat, armor, beds, distant terrain).** This checklist body is still mostly the Stage 1 text and needs a full refresh. Latest run: 115/115 unit, 16/16 lighting, browser e2e 7/11 (B, C, G, I failing; L not yet run).
 Nothing was tested on a physical phone or tablet, or on a GPU. The browser tests use software rendering at
 about 17 fps.
 
@@ -156,7 +156,7 @@ about 17 fps.
 | Feature | State | Evidence and notes |
 |---|---|---|
 | Runs from file:// with no build step | Working | `index.html` plus classic scripts and vendored three.js r128 |
-| Single-file export | Working | `npm run build` writes `dist/blockcraft.html` (offline) and `dist/artifact.html` |
+| Single-file export | Working | `npm run build` writes `dist/vibecraft.html` (offline) and `dist/artifact.html` |
 | v0.1 kept playable | Working | `releases/0.1/index.html` |
 | Automated tests | Working | `npm test` (104 unit tests), `npm run e2e` (9 browser scenarios) |
 

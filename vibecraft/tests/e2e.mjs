@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Blockcraft browser end-to-end tests (Playwright + headless Chromium, software WebGL).
+// Vibecraft browser end-to-end tests (Playwright + headless Chromium, software WebGL).
 //
 //   npm run e2e                 run every scenario
 //   node tests/e2e.mjs B E      run only scenarios B and E
 //   node tests/e2e.mjs --repeat=3 C   run a scenario several times (flakiness check)
 //
-// Environment: E2E_SHOTS=<dir> for screenshots (default: <tmp>/blockcraft-e2e),
+// Environment: E2E_SHOTS=<dir> for screenshots (default: <tmp>/vibecraft-e2e),
 // PLAYWRIGHT_MODULE=<path> if Playwright is not resolvable from here (defaults to the global install).
 //
 // The tests open index.html from file:// and drive the real UI (clicks, keys, mouse buttons, touch).
@@ -24,7 +24,7 @@ const { chromium, devices } = pw;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GAME_URL = pathToFileURL(path.join(ROOT, 'index.html')).href;
-const SHOTS = process.env.E2E_SHOTS || path.join(os.tmpdir(), 'blockcraft-e2e');
+const SHOTS = process.env.E2E_SHOTS || path.join(os.tmpdir(), 'vibecraft-e2e');
 const LAUNCH_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 const VIEWPORT = { width: 960, height: 600 };
 const SCENARIO_TIMEOUT = 300000;
@@ -296,7 +296,7 @@ class Game {
   tapOrClick(sel, opts) { return this.touch ? this.page.tap(sel, opts) : this.page.click(sel, opts); }
 
   // Title → Singleplayer → Create new world → form → Create world, entirely through the UI.
-  async createWorld({ name = 'Test World', mode = 'survival', difficulty = 2, seed = '12345', cheats = null } = {}) {
+  async createWorld({ name = 'Test World', mode = 'survival', difficulty = 2, seed = '12345', cheats = null, gen = 1 } = {}) {
     await this.tapOrClick('#btn-singleplayer');
     await this.page.waitForSelector('#scr-worlds:not([hidden])');
     await this.tapOrClick('#btn-new-world');
@@ -305,6 +305,7 @@ class Game {
     await this.tapOrClick(`label:has(#cw-mode-${mode}) span`);
     await this.page.selectOption('#cw-difficulty', String(difficulty));
     await this.page.fill('#cw-seed', String(seed));
+    await this.page.selectOption('#cw-gen', String(gen));   // these scenarios were laid out on the Classic generator
     if (cheats != null) await this.page.setChecked('#cw-cheats', cheats);
     await this.tapOrClick('#btn-create');
     await this.waitPlaying();
@@ -490,7 +491,7 @@ async function main() {
   const only = args.filter(a => !a.startsWith('--')).map(a => a.toUpperCase());
   const list = SCENARIOS.filter(s => !only.length || only.includes(s.id));
   if (!list.length) { console.error('No scenarios match ' + only.join(' ') + '. Available: ' + SCENARIOS.map(s => s.id).join(' ')); process.exit(2); }
-  console.log(`Blockcraft e2e: ${GAME_URL}\nScreenshots: ${SHOTS}\n`);
+  console.log(`Vibecraft e2e: ${GAME_URL}\nScreenshots: ${SHOTS}\n`);
   let browser = await chromium.launch({ args: LAUNCH_ARGS });
   const results = [], T0 = Date.now();
   for (let k = 0; k < repeat; k++) for (const sc of list) {
@@ -526,6 +527,8 @@ scenario('A', 'Menu → Singleplayer → create Survival world (Normal, seed 123
   await g.page.fill('#cw-name', 'Alpha');
   await g.page.selectOption('#cw-difficulty', '2');
   await g.page.fill('#cw-seed', '12345');
+  t.check(await g.page.inputValue('#cw-gen') === '2', 'new worlds default to the Biomes generator');
+  await g.page.selectOption('#cw-gen', '1');
   await g.page.click('#btn-create');
   await g.waitPlaying();
   const s = await g.ev(() => ({ snap: __e2e.snap(), hud: __e2e.hud(), inv: BC.game.state.inv.filter(Boolean).length,
@@ -1371,6 +1374,67 @@ scenario('K', 'Developer toolkit: console commands with completion, dev panel bu
   s = await g.ev(() => ({ t: BC.game.dev.time, last: Array.from(document.querySelectorAll('#dev-log .dev-line')).pop().textContent }));
   t.check(Math.abs(s.t - 0.75) < 0.02 && /cheats/.test(s.last), 'without cheats or Developer mode, commands are refused', s);
   await g.ev(() => BC.game.applySettings({ devMode: true }));
+});
+
+scenario('L', 'Creatures: animals spawn in a Biomes world; a sword kills a pig for pork; armor equips and shows; a bed skips the night and becomes the respawn point', async t => {
+  const g = await t.open();
+  await g.boot();
+  await g.createWorld({ name: 'Farm', seed: 'vibe', gen: 2 });
+  // animals appear around the start, standing in daylight
+  await g.until('BC.game.mobs.list.filter(m => m.sp.cat === "passive" && m.skyL != null).length >= 2', 40000, 'no animals spawned near the start');
+  let s = await g.ev(() => { const a = BC.game.mobs.list.filter(m => m.sp.cat === 'passive'); return { n: a.length, types: [...new Set(a.map(m => m.type))], lit: a.filter(m => m.skyL >= 9).length }; });
+  t.check(s.n >= 2 && s.lit >= 1, 'animals spawn around the start of a Biomes world, lit by daylight', s);
+  const spawn = await g.ev(() => BC.game.record.spawn);
+  const gr = await g.ev(([x, z]) => __e2e.findGround(Math.floor(x), Math.floor(z), 0, 40, 3), [spawn[0], spawn[2]]);
+  t.assert(gr, 'no flat ground near spawn');
+  await g.teleport(gr.x, gr.y, gr.z);
+  // melee: an iron sword (6 damage) kills a 10-health pig in two charged hits
+  await g.ev(([x, y, z]) => {
+    const G = BC.game, st = G.state; st.inv.fill(null); st.inv[0] = BC.items.make('iron_sword', 1); st.sel = 0;
+    G.mobs.config.ai = false; G.mobs.config.spawning = false;
+    __e2e.pig = G.mobs.spawn('pig', x + 1.8, y, z).uid;
+  }, [gr.x, gr.y, gr.z]);
+  const hits = [];
+  for (let i = 0; i < 6; i++) {
+    const hp = await g.ev(([x, y, z]) => {
+      const G = BC.game, m = G.mobs.list.find(m => m.uid === __e2e.pig && m.deathTime < 0);
+      if (!m) return null;
+      Object.assign(m, { x: x + 1.8, z, px: x + 1.8, pz: z, vx: 0, vz: 0 });   // undo the knockback so it stays in reach
+      const e = G.dev.eye(); G.player.yaw = Math.atan2(-(m.x - e.x), -(m.z - e.z)); G.player.pitch = Math.atan2(m.y + m.sp.h / 2 - e.y, Math.hypot(m.x - e.x, m.z - e.z));
+      return m.health;
+    }, [gr.x, gr.y, gr.z]);
+    if (hp == null) break;
+    hits.push(hp);
+    await g.page.mouse.down({ button: 'left' }); await g.page.mouse.up({ button: 'left' });
+    await g.waitGame(0.8);
+  }
+  await g.waitGame(1.5);
+  s = await g.ev(() => ({ alive: BC.game.mobs.list.some(m => m.uid === __e2e.pig && m.deathTime < 0), drops: BC.game.entities.list.map(e => __e2e.key(e.id)) }));
+  t.check(!s.alive && hits.length === 2 && s.drops.includes('raw_pork'), 'two sword hits kill the pig and it drops raw pork', { hits, ...s });
+  // armor: shift-click equips into the matching slot; the HUD shows armor points
+  await g.ev(() => { BC.game.state.inv[1] = BC.items.make('iron_chestplate', 1); });
+  await g.press('KeyE'); await g.waitFor(() => BC.game.screen === 'inventory');
+  await g.clickSlot('inv', 1, { shift: true });
+  s = await g.ev(() => ({ armor: BC.game.state.armor.map(x => x && __e2e.key(x.id)), left: !!BC.game.state.inv[1] }));
+  t.check(s.armor[1] === 'iron_chestplate' && !s.left, 'shift-click moves a chestplate into the chest armor slot', s);
+  await g.press('KeyE'); await g.waitPlaying(); await g.frames(3);
+  s = await g.ev(() => ({ vis: getComputedStyle(document.getElementById('armor-bar')).visibility, full: Array.from(document.querySelectorAll('#armor-bar .hud-ico')).filter(e => e.dataset.k === 'armor_full').length }));
+  t.check(s.vis === 'visible' && s.full === 3, 'the armor bar shows 6 points (3 full icons) for an iron chestplate', s);
+  // bed: place it, sleep at night, wake at dawn; dying brings you back beside the bed
+  await g.ev(() => { const st = BC.game.state; st.inv[2] = BC.items.make('bed', 1); st.sel = 2; BC.game.dev.time = 0.6; });
+  const bx = gr.bx + 2, by = gr.y, bz = gr.bz;
+  const pl = await g.placeOn(bx, by - 1, bz);
+  t.check(pl.changed && pl.id >= 36 && pl.id <= 39, 'right-click places a bed', pl);
+  await g.aim(bx, by, bz);
+  await g.page.mouse.down({ button: 'right' }); await g.page.mouse.up({ button: 'right' });
+  await g.until('BC.game.dev.time < 0.1', 8000, 'sleeping did not skip the night');
+  s = await g.ev(() => ({ bed: BC.game.record.bed, time: BC.game.dev.time }));
+  t.check(Array.isArray(s.bed), 'sleeping sets the bed as the respawn point', s);
+  await g.ev(() => BC.game.dev.kill());
+  await g.waitFor(() => BC.game.screen === 'death');
+  await g.page.click('#btn-respawn'); await g.waitPlaying();
+  s = await g.ev(([x, z]) => { const p = BC.game.player.p; return { d: Math.hypot(p.x - x, p.z - z), p: [p.x, p.y, p.z] }; }, [bx + 0.5, bz + 0.5]);
+  t.check(s.d < 3, 'after dying, you respawn beside the bed', s);
 });
 
 main().catch(e => { console.error(e); process.exit(1); });

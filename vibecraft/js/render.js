@@ -507,7 +507,7 @@
         'void main(){ float t = texture2D(map, (vW + offset) / 384.0).a; float a = t * 0.82 * (1.0 - smoothstep(radius * 0.5, radius, distance(vW, center))); if (a < 0.01) discard; gl_FragColor = vec4(color, a); }',
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
     });
-    clouds = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), cloudMat);
+    clouds = new THREE.Mesh(new THREE.PlaneGeometry(4200, 4200), cloudMat);
     clouds.rotation.x = -Math.PI / 2; clouds.position.y = 112; clouds.renderOrder = 2;
     scene.add(clouds);
   }
@@ -539,6 +539,7 @@
     for (let i = 0; i < 3; i++) heldRGB[i] += (heldTarget[i] - heldRGB[i]) * (heldRGB.init ? k : 1);
     heldRGB.init = true;
     for (const m of heldMats) m.color.setRGB(heldRGB[0], heldRGB[1], heldRGB[2]);
+    for (const m of armMats) m.color.setRGB(heldRGB[0] * m.userData.shade, heldRGB[1] * m.userData.shade, heldRGB[2] * m.userData.shade);
     sunDir.set(Math.cos(a), sy, 0.28).normalize();
     sun.position.copy(eye).addScaledVector(sunDir, 320); sun.lookAt(eye);
     moon.position.copy(eye).addScaledVector(sunDir, -320); moon.lookAt(eye);
@@ -555,13 +556,38 @@
   // ---------------------------------------------------------------- held item (first person)
   let heldRoot, heldMesh = null, heldKey = null, handMesh;
   const HELD_BASE = new THREE.Vector3(0.56, -0.5, -0.9);
+  // First-person arm: a textured skin forearm and hand with a shirt sleeve, shaded per face (original pixel art).
+  const armMats = [];
+  function armTexture(kind) {
+    const c = document.createElement('canvas'); c.width = 8; c.height = 16; const x = c.getContext('2d');
+    const r = mulberry32(kind === 'skin' ? 11 : 23);
+    for (let yy = 0; yy < 16; yy++) for (let xx = 0; xx < 8; xx++) {
+      let col;
+      if (kind === 'skin') {
+        const k = (r() - 0.5) * 14; col = [214 + k, 160 + k, 122 + k];
+        if (yy < 3) col = [col[0] - 14, col[1] - 14, col[2] - 12];            // knuckles and fingertips
+        if (yy === 3 && xx % 2 === 0) col = [184, 128, 96];                    // finger gaps
+      } else {
+        const k = (r() - 0.5) * 16; col = [46 + k, 118 + k, 132 + k];
+        if (yy === 0 || yy === 1) col = [34, 88, 100];                          // cuff
+        if ((xx + yy * 3) % 7 === 0) col = [col[0] - 10, col[1] - 18, col[2] - 18];  // folds
+      }
+      x.fillStyle = `rgb(${col.map(v => Math.max(0, Math.min(255, v | 0))).join(',')})`; x.fillRect(xx, yy, 1, 1);
+    }
+    const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t;
+  }
+  function armPart(tex, w, h, len) {
+    const shades = [0.78, 0.78, 1.0, 0.55, 0.68, 0.88];   // +x, -x, +y, -y, +z, -z
+    const mats = shades.map(sh => { const m = new THREE.MeshBasicMaterial({ map: tex }); m.userData.shade = sh; armMats.push(m); return m; });
+    return new THREE.Mesh(new THREE.BoxGeometry(w, h, len), mats);
+  }
   function buildHeld() {
     heldRoot = new THREE.Group(); hudScene.add(heldRoot);
-    const g = new THREE.BoxGeometry(0.2, 0.2, 0.72);
-    const cols = []; const faceShade = [0.8, 0.8, 1, 0.55, 0.7, 0.7];
-    for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) cols.push(0.86 * faceShade[f], 0.66 * faceShade[f], 0.52 * faceShade[f]);
-    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    handMesh = new THREE.Mesh(g, handMat);
+    const skin = armTexture('skin'), shirt = armTexture('shirt');
+    handMesh = new THREE.Group();
+    const fore = armPart(skin, 0.2, 0.2, 0.42); fore.position.z = -0.21;        // hand and forearm toward the view
+    const sleeve = armPart(shirt, 0.23, 0.23, 0.46); sleeve.position.z = 0.2;   // sleeve toward the shoulder
+    handMesh.add(fore, sleeve);
   }
   // Show the given stack (or the bare hand when null).
   R.setHeld = function (stack) {
@@ -571,7 +597,7 @@
     if (heldMesh) heldRoot.remove(heldMesh);
     const d = stack && BC.items.get(stack.id);
     if (!d) {
-      heldMesh = handMesh; heldMesh.position.set(0.12, -0.12, 0.1); heldMesh.rotation.set(-0.35, 0.28, 0.12);
+      heldMesh = handMesh; heldMesh.position.set(0, -0.01, 0.41); heldMesh.rotation.set(0.4, 0.37, -0.12);   // fist low right, reaching up toward the crosshair
     } else if (isFlat(d)) {
       heldMesh = new THREE.Mesh(flatGeometry(d.block, 0.6), heldFlatMat);
       heldMesh.position.set(0.1, 0.04, 0); heldMesh.rotation.set(0.1, -1.05, 0.28);

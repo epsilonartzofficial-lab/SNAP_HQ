@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>Blockcraft</title>
+<title>Vibecraft</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Sans+Condensed:wght@400;600&family=Cinzel:wght@600;800&display=swap">
@@ -22,7 +22,7 @@
     <div id="toast" class="fade"></div>
     <div id="eat-bar" hidden><div></div></div>
     <div id="stats">
-      <div id="hearts" aria-label="Health"></div>
+      <div id="left-stats"><div id="armor-bar" aria-label="Armor"></div><div id="hearts" aria-label="Health"></div></div>
       <div id="right-stats"><div id="air" aria-label="Air"></div><div id="food" aria-label="Hunger"></div></div>
     </div>
     <div id="hotbar" role="toolbar" aria-label="Hotbar"></div>
@@ -48,7 +48,7 @@
   <div id="menu-shell" hidden>
     <div class="menu-vignette" aria-hidden="true"></div>
     <header class="menu-logo">
-      <h1 class="wordmark" id="wordmark">BLOCK<span>CRAFT</span></h1>
+      <h1 class="wordmark" id="wordmark">VIBE<span>CRAFT</span></h1>
       <p class="menu-tag">Survive · Build · Explore</p>
     </header>
     <nav class="menu-nav" aria-label="Main menu">
@@ -110,6 +110,9 @@
       <label class="field-col" for="cw-difficulty">Difficulty
         <select id="cw-difficulty"><option value="0">Peaceful</option><option value="1">Easy</option><option value="2" selected>Normal</option><option value="3">Hard</option></select>
       </label>
+      <label class="field-col" for="cw-gen">World type
+        <select id="cw-gen"><option value="2" selected>Biomes: continents, rivers, 39 biomes</option><option value="1">Classic (the original terrain)</option></select>
+      </label>
       <label class="field-col" for="cw-seed">Seed<input id="cw-seed" placeholder="Leave blank for a random seed" autocomplete="off"></label>
       <label class="check" for="cw-cheats"><input type="checkbox" id="cw-cheats"> Allow cheats (lets you switch game mode from the pause menu)</label>
       <div class="row">
@@ -127,7 +130,7 @@
     <div class="row">
       <button class="btn small tex-grass" id="btn-transfer-go" type="button">Copy</button>
       <label class="btn small tex-planks file-btn" id="transfer-file-label">Choose file<input type="file" id="transfer-file" accept=".json,application/json"></label>
-      <a class="btn small tex-planks" id="transfer-download" download="blockcraft-world.json" href="#">Download file</a>
+      <a class="btn small tex-planks" id="transfer-download" download="vibecraft-world.json" href="#">Download file</a>
       <button class="btn small tex-planks" id="btn-transfer-back" type="button">Back</button>
     </div>
     <p class="hint" id="transfer-status" role="status"></p>
@@ -157,7 +160,7 @@
       <label class="field-col" for="set-sens">Mouse sensitivity <output id="set-sens-out"></output><input type="range" id="set-sens" min="0.2" max="3" step="0.1"></label>
       <label class="field-col" for="set-fov">Field of view <output id="set-fov-out"></output><input type="range" id="set-fov" min="50" max="110" step="1"></label>
       <label class="field-col" for="set-rd">Render distance
-        <select id="set-rd"><option value="4">4 chunks</option><option value="6">6 chunks</option><option value="8">8 chunks</option><option value="10">10 chunks</option></select>
+        <select id="set-rd"><option value="4">4 chunks</option><option value="6">6 chunks</option><option value="8">8 chunks</option><option value="10">10 chunks</option><option value="12">12 chunks</option><option value="16">16 chunks</option><option value="24">24 chunks (distant terrain beyond 16)</option><option value="32">32 chunks (distant terrain beyond 16)</option><option value="48">48 chunks (distant terrain beyond 16)</option><option value="64">64 chunks (distant terrain beyond 16)</option></select>
       </label>
       <div class="field-col checks">
         <label class="check" for="set-invert"><input type="checkbox" id="set-invert"> Invert mouse Y</label>
@@ -224,22 +227,29 @@
 <script src="js/blocks-world.js"></script>
 <script src="js/blocks-stage2.js"></script>
 <script src="js/blocks-biomes.js"></script>
+<script src="js/blocks-combat.js"></script>
 <script src="js/items.js"></script>
 <script src="js/items-stage2.js"></script>
+<script src="js/items-combat.js"></script>
 <script src="js/inventory.js"></script>
 <script src="js/crafting.js"></script>
 <script src="js/recipes-stage2.js"></script>
+<script src="js/recipes-combat.js"></script>
 <script src="js/containers.js"></script>
 <script src="js/survival.js"></script>
 <script src="js/worldgen.js"></script>
 <script src="js/worldgen2.js"></script>
 <script src="js/lighting.js"></script>
+<script src="js/mobs.js"></script>
 <script src="js/save.js"></script>
 <script src="js/textures.js"></script>
 <script src="js/tex-world.js"></script>
 <script src="js/tex-stage2.js"></script>
 <script src="js/tex-biomes.js"></script>
+<script src="js/tex-combat.js"></script>
 <script src="js/render.js"></script>
+<script src="js/mob-models.js"></script>
+<script src="js/farterrain.js"></script>
 <script src="js/world.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ui.js"></script>

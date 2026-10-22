@@ -12,7 +12,7 @@
   const KEY_V1 = 'blockcraft.save.v1';
   const MODES = ['survival', 'creative'];
 
-  const DEFAULT_SETTINGS = { sensitivity: 1, invertY: false, fov: 75, renderDistance: 6, reduceMotion: false, damageTilt: true, showCoords: false, devMode: true, consoleHistory: [] };
+  const DEFAULT_SETTINGS = { sensitivity: 1, invertY: false, fov: 75, renderDistance: 8, reduceMotion: false, damageTilt: true, showCoords: false, devMode: true, consoleHistory: [] };
 
   function freshIndex() { return { v: 2, worlds: [], settings: Object.assign({}, DEFAULT_SETTINGS), migratedV1: false }; }
   function newId() { return 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
@@ -88,7 +88,7 @@
     function normalize(w) {
       if (!w || typeof w !== 'object') throw new Error('World data is not an object');
       if (w.v !== 2) throw new Error('Unsupported world format version ' + w.v);
-      if (!BC.worldgen.has(w.gen)) throw new Error('This world needs a newer version of Blockcraft (generator ' + w.gen + ')');
+      if (!BC.worldgen.has(w.gen)) throw new Error('This world needs a newer version of Vibecraft (generator ' + w.gen + ')');
       w.seed = num(w.seed, 0) >>> 0;
       w.mode = MODES.includes(w.mode) ? w.mode : 'survival';
       w.difficulty = [0, 1, 2, 3].includes(w.difficulty) ? w.difficulty : 2;
@@ -101,7 +101,7 @@
         const clean = [];
         for (let i = 0; i + 1 < arr.length; i += 2) {
           const idx = arr[i], id = arr[i + 1];
-          if (Number.isInteger(id) && id > 0 && !BC.blocks.exists(id)) throw new Error('This world contains blocks from a newer version of Blockcraft');
+          if (Number.isInteger(id) && id > 0 && !BC.blocks.exists(id)) throw new Error('This world contains blocks from a newer version of Vibecraft');
           if (Number.isInteger(idx) && idx >= 0 && idx < vol && Number.isInteger(id) && id >= 0) clean.push(idx, id);
         }
         w.edits[k] = clean;
@@ -147,7 +147,7 @@
     function exportWorld(id) { const r = read(KEY_WORLD(id)); return r.ok && r.value ? JSON.stringify(r.value) : null; }
     function importWorld(text) {
       let w;
-      try { w = normalize(JSON.parse(text)); } catch (e) { return { ok: false, error: 'That text is not a Blockcraft world: ' + e.message }; }
+      try { w = normalize(JSON.parse(text)); } catch (e) { return { ok: false, error: 'That text is not a Vibecraft world: ' + e.message }; }
       w.id = newId(); w.name = (w.name || 'Imported world') + ' (imported)';
       const r = saveWorld(w);
       return r.ok ? { ok: true, world: w } : { ok: false, error: 'Could not store the world: ' + (r.error && r.error.message) };

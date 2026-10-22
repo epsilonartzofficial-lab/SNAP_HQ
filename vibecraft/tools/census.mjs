@@ -4,7 +4,7 @@
 //   node tools/census.mjs                       all presets, seeds 1, 42 and 20260928, 4096-block windows
 //   node tools/census.mjs --presets=balanced --seeds=42 --size=2048
 //   node tools/census.mjs --quick               smaller windows, fewer chunks (a fast smoke run)
-//   options: --step=8 (sample spacing), --out=<dir> (HTML maps; default <tmp>/blockcraft-census), --png (also PNG maps),
+//   options: --step=8 (sample spacing), --out=<dir> (HTML maps; default <tmp>/vibecraft-census), --png (also PNG maps),
 //            --ascii (print a coarse text map), --json=<file> (write all numbers), --chunks=200 (timing sample)
 //
 // Reports, per preset: land and ocean share, share per family and outcome, patch sizes per outcome (connected
@@ -23,7 +23,7 @@ const SEEDS = String(args.seeds || (QUICK ? '42' : '1,42,20260928')).split(',').
 const PRESET_LIST = String(args.presets || 'archipelago,balanced,continental').split(',');
 const SIZE = Number(args.size || (QUICK ? 2048 : 4096));
 const STEP = Number(args.step || 8);
-const OUT = args.out || path.join(os.tmpdir(), 'blockcraft-census');
+const OUT = args.out || path.join(os.tmpdir(), 'vibecraft-census');
 const NCHUNKS = Number(args.chunks || (QUICK ? 60 : 200));
 const SEAM_SIZE = QUICK ? 256 : 512;
 const BC = loadBC();
@@ -114,7 +114,7 @@ function scanWorld(g, seed, preset) {
   }
   if (args.png) fs.writeFileSync(path.join(OUT, `${preset}-${seed}.png`), png(N, N, Buffer.from((() => { const b = new Uint8Array(N * N * 3); for (let i = 0; i < N * N; i++) { const c = OUTS[L[i]].color, k = 0.7 + 0.3 * Math.min(1, Math.max(0, (H[i] - 10) / 60)); b[i * 3] = parseInt(c.slice(1, 3), 16) * k; b[i * 3 + 1] = parseInt(c.slice(3, 5), 16) * k; b[i * 3 + 2] = parseInt(c.slice(5, 7), 16) * k; } return b; })())));
   const shares = Array.from(count, c => c / (N * N));
-  fs.writeFileSync(path.join(OUT, `${preset}-${seed}.html`), htmlMap(`Blockcraft v2 · ${preset} · seed ${seed}`, N, L, H, shares, `${SIZE}×${SIZE} blocks around the origin, one pixel per ${STEP} blocks.`));
+  fs.writeFileSync(path.join(OUT, `${preset}-${seed}.html`), htmlMap(`Vibecraft v2 · ${preset} · seed ${seed}`, N, L, H, shares, `${SIZE}×${SIZE} blocks around the origin, one pixel per ${STEP} blocks.`));
   if (args.ascii) asciiMap(L, N);
   return { N, count, water: water / (N * N), patches, borders, pairs, bad };
 }
@@ -252,7 +252,7 @@ function timing(g) {
 // ================================================================ main
 fs.mkdirSync(OUT, { recursive: true });
 const report = { size: SIZE, step: STEP, seeds: SEEDS, presets: {} };
-console.log(`Blockcraft world generator v2 census · ${SIZE}x${SIZE} blocks per seed, sample every ${STEP} blocks · seeds ${SEEDS.join(', ')}`);
+console.log(`Vibecraft world generator v2 census · ${SIZE}x${SIZE} blocks per seed, sample every ${STEP} blocks · seeds ${SEEDS.join(', ')}`);
 console.log(`(${NO} outcomes in ${FAMS.length} families; maps in ${OUT})\n`);
 let Vbal = null;
 for (const preset of PRESET_LIST) {

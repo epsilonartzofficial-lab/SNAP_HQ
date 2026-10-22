@@ -83,7 +83,7 @@
     key: 'oak_sapling', name: 'Oak Sapling', tex: 'oak_sapling', shape: 'cross', solid: false, hardness: 0,
     canPlace: (W, x, y, z) => isSoil(W.getBlock(x, y - 1, z)),
     onNeighbor: (W, x, y, z) => { if (!isSoil(W.getBlock(x, y - 1, z))) popOff(W, x, y, z, 'oak_sapling'); },
-    // Reference: with light >= 9 above, 1 in 7 random ticks advances one of two growth stages. Blockcraft has no
+    // Reference: with light >= 9 above, 1 in 7 random ticks advances one of two growth stages. Vibecraft has no
     // block states, so the tree grows in one step with chance 1/14 (the same average: about 16 minutes loaded).
     randomTick: (W, x, y, z, rand) => { if (W.getLight(x, y + 1, z) >= 9 && rand() < 1 / 14) growOak(W, x, y, z, rand); },
     grow: growOak,
