@@ -48,6 +48,8 @@ update: run the tests, push, publish a build, write a short report, and stop for
 - Scenario I now allows edits the world makes itself (grass spreading), which it previously counted as a mismatch.
 - Scenarios B, C and G failed in the previous full run only because other jobs were loading the machine; they
   pass on their own and in the clean full run.
+- Results: 115/115 unit, 16/16 lighting, 12/12 browser scenarios (A–L), 5/5 world scenarios. In L the test
+  now waits two frames between aiming and clicking; clicking in the same frame as the aim change missed once.
 - New scenario L covers animals, melee, armor and beds. New unit tests cover armor absorption, difficulty
   scaling, armor slots and the armor and bed recipes.
 

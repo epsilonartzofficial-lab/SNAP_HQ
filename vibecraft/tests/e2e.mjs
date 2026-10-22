@@ -1405,6 +1405,7 @@ scenario('L', 'Creatures: animals spawn in a Biomes world; a sword kills a pig f
     }, [gr.x, gr.y, gr.z]);
     if (hp == null) break;
     hits.push(hp);
+    await g.frames(2);   // let the camera take the new aim before clicking
     await g.page.mouse.down({ button: 'left' }); await g.page.mouse.up({ button: 'left' });
     await g.waitGame(0.8);
   }
