@@ -26,6 +26,31 @@ marked "unverified".
 6. Worlds keep working across versions. The save format and the world-generator version are versioned
    separately, and terrain changes ship as a new generator version so existing worlds keep their land.
 
+## Update plan (small releases, from v0.3.1)
+
+The stages below are long. From v0.3.1 the work ships as small updates of a few hours each. After every
+update: run the tests, push, publish a build, write a short report, and stop for the owner to playtest.
+
+| Update | Contents | Done when |
+|---|---|---|
+| 0.3.1 Fix and verify | All browser scenarios green, new creature scenario L, checklist and README current | Every automated test passes |
+| 0.3.2 Sound | Original generated sound effects for steps, mining, placing, hits, eating, animals, monsters, water; volume setting | Every common action has a sound; volume is saved |
+| 0.3.3 Biome variety | Birch, spruce, jungle and acacia tree shapes; tall grass, ferns, dead bushes, berry bushes, biome flowers | 500 blocks of walking crosses visibly different places |
+| 0.3.4 Farming and breeding | Hoe, seeds, wheat growth stages, bread; animals follow wheat, breed, babies grow up | A farm and a herd in one session |
+| 0.3.5 Bow, shears, wool | Bow and arrows, shearing, dyes from flowers, coloured wool | Craft a bow, shoot a monster, build with coloured wool |
+| 0.3.6 Item art | Redrawn tool, food and armor icons and held items | Every item is recognisable at hotbar size |
+| 0.3.7 Character creation | Skin, hair, shirt and trousers chosen per world; first-person arm matches | Choices are saved with the world |
+| 0.3.8 Desktop app | Electron package; Ctrl to sprint; Ctrl+W can't close the game | An installable app runs existing worlds |
+
+### 0.3.1 report
+
+- Fixed: beds could not be placed by right-click (only block items reached the placing code).
+- Scenario I now allows edits the world makes itself (grass spreading), which it previously counted as a mismatch.
+- Scenarios B, C and G failed in the previous full run only because other jobs were loading the machine; they
+  pass on their own and in the clean full run.
+- New scenario L covers animals, melee, armor and beds. New unit tests cover armor absorption, difficulty
+  scaling, armor slots and the armor and bed recipes.
+
 ## Stage 0: Creative sandbox (v0.1, done)
 
 Single-file creative voxel sandbox. Preserved and still playable at `releases/0.1/index.html`.

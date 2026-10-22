@@ -1242,12 +1242,12 @@ scenario('I', 'World generation across chunk borders: streaming, meshing, determ
   // Terrain equals a fresh generator run, block for block, for untouched chunks on both sides of the borders.
   const CHUNKS = [[-3, 0], [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0], [-1, -1], [0, -1]];
   const cmp = chunks => {
-    const W = BC.game.world, gen = BC.worldgen.create(1, BC.game.record.seed), IDX = BC.worldgen.IDX, out = { compared: 0, mism: [], skipped: [] };
+    const W = BC.game.world, gen = BC.worldgen.create(1, BC.game.record.seed), IDX = BC.worldgen.IDX, out = { compared: 0, edited: 0, mism: [], skipped: [] };
     for (const [cx, cz] of chunks) {
       if (!W.hasChunk(cx * 16, cz * 16)) { out.skipped.push(cx + ',' + cz); continue; }
       const ed = W.edits.get(cx + ',' + cz), data = gen.generateChunk(cx, cz);
       for (let y = 0; y < 80; y++) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
-        const i = IDX(x, y, z); if (ed && ed.has(i)) continue;
+        const i = IDX(x, y, z); if (ed && ed.has(i)) { out.edited++; continue; }
         const a = W.getBlock(cx * 16 + x, y, cz * 16 + z); out.compared++;
         if (a !== data[i] && out.mism.length < 5) out.mism.push([cx * 16 + x, y, cz * 16 + z, a, data[i]]);
       }
@@ -1255,7 +1255,7 @@ scenario('I', 'World generation across chunk borders: streaming, meshing, determ
     return out;
   };
   let c = await g.ev(cmp, CHUNKS);
-  t.check(c.skipped.length === 0 && c.compared === CHUNKS.length * 16 * 16 * 80 && c.mism.length === 0, 'getBlock matches worldgen.generateChunk across chunk borders', c);
+  t.check(c.skipped.length === 0 && c.compared + c.edited === CHUNKS.length * 16 * 16 * 80 && c.mism.length === 0, 'getBlock matches worldgen.generateChunk across chunk borders', c);
   // Border edits re-mesh both neighbours and survive unloading.
   const edits = [[15, Y - 2, 3, 9], [16, Y - 2, 3, 13], [-1, Y - 2, -1, 19], [0, Y - 2, 0, 4]];
   const setOk = await g.ev(e => e.map(([x, y, z, id]) => BC.game.world.setBlock(x, y, z, id)), edits);
@@ -1385,7 +1385,7 @@ scenario('L', 'Creatures: animals spawn in a Biomes world; a sword kills a pig f
   let s = await g.ev(() => { const a = BC.game.mobs.list.filter(m => m.sp.cat === 'passive'); return { n: a.length, types: [...new Set(a.map(m => m.type))], lit: a.filter(m => m.skyL >= 9).length }; });
   t.check(s.n >= 2 && s.lit >= 1, 'animals spawn around the start of a Biomes world, lit by daylight', s);
   const spawn = await g.ev(() => BC.game.record.spawn);
-  const gr = await g.ev(([x, z]) => __e2e.findGround(Math.floor(x), Math.floor(z), 0, 40, 3), [spawn[0], spawn[2]]);
+  const gr = await g.ev(([x, z]) => __e2e.findGround(Math.floor(x), Math.floor(z), 0, 48, 2), [spawn[0], spawn[2]]);
   t.assert(gr, 'no flat ground near spawn');
   await g.teleport(gr.x, gr.y, gr.z);
   // melee: an iron sword (6 damage) kills a 10-health pig in two charged hits
@@ -1422,9 +1422,9 @@ scenario('L', 'Creatures: animals spawn in a Biomes world; a sword kills a pig f
   t.check(s.vis === 'visible' && s.full === 3, 'the armor bar shows 6 points (3 full icons) for an iron chestplate', s);
   // bed: place it, sleep at night, wake at dawn; dying brings you back beside the bed
   await g.ev(() => { const st = BC.game.state; st.inv[2] = BC.items.make('bed', 1); st.sel = 2; BC.game.dev.time = 0.6; });
-  const bx = gr.bx + 2, by = gr.y, bz = gr.bz;
+  const bx = gr.bx + 1, by = gr.y, bz = gr.bz;   // the head goes one block further, still on the flat patch
   const pl = await g.placeOn(bx, by - 1, bz);
-  t.check(pl.changed && pl.id >= 36 && pl.id <= 39, 'right-click places a bed', pl);
+  t.check(pl.changed && pl.id >= 36 && pl.id <= 39, 'right-click places a bed', Object.assign(pl, await g.ev(() => ({ held: BC.game.state.inv[BC.game.state.sel] && __e2e.key(BC.game.state.inv[BC.game.state.sel].id), toast: document.getElementById('toast').textContent, screen: BC.game.screen, p: [BC.game.player.p.x, BC.game.player.p.y, BC.game.player.p.z], yaw: BC.game.player.yaw }))));
   await g.aim(bx, by, bz);
   await g.page.mouse.down({ button: 'right' }); await g.page.mouse.up({ button: 'right' });
   await g.until('BC.game.dev.time < 0.1', 8000, 'sleeping did not skip the night');

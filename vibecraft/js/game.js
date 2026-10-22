@@ -719,7 +719,7 @@
         }
       } else {
         state.eating = 0;
-        if ((useCooldown <= 0 || useFresh) && h && d && d.kind === 'block') { if (place(h)) useCooldown = 0.2; }
+        if ((useCooldown <= 0 || useFresh) && h && d && (d.kind === 'block' || d.placesBed)) { if (place(h)) useCooldown = 0.2; }
       }
       useFresh = false;
     } else state.eating = 0;

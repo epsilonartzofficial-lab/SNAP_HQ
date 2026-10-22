@@ -3,7 +3,7 @@
 // Every script attaches to the global `BC` object so the game runs from file:// without a bundler.
 (function (root) {
   const BC = root.BC = root.BC || {};
-  BC.VERSION = '0.3.0-dev';
+  BC.VERSION = '0.3.1';
   BC.SAVE_VERSION = 2;
 
   BC.C = {

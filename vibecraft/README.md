@@ -2,9 +2,10 @@
 
 A survival sandbox for the browser, inspired by Minecraft Java Edition. All code, textures and names are original.
 
-**Version 0.2.0: Stage 1, the first-day Survival loop.** You can punch trees, craft planks, sticks, a crafting
-table and wooden and stone tools, mine with timed breaking and tool tiers, and manage health, hunger and air.
-You can die, recover your items and save several worlds. Creative mode keeps flight and unlimited blocks.
+**Version 0.3.1.** Survival with animals and monsters, melee combat, armor, beds, furnaces and chests, torches
+and real lighting, a biome world generator (39 biomes) and a view distance of up to 64 chunks (full blocks
+out to 16, simplified distant terrain beyond). Creative mode keeps flight and unlimited blocks. A developer
+console (`/` or T) and panel (F4) help with testing.
 
 ## Play
 
@@ -22,8 +23,10 @@ Q to drop.
 ## Develop
 
 ```
-npm test             # 104 unit tests for the rules (Node 22, no dependencies)
-npm run e2e          # 9 browser scenarios in headless Chromium (needs Playwright)
+npm test             # 115 unit tests for the rules (Node 22, no dependencies)
+npm run e2e          # 12 browser scenarios in headless Chromium (needs Playwright)
+node tests/e2e-world.mjs   # 5 lighting and world-system browser scenarios
+node tests/lighting.mjs    # 16 lighting engine tests
 npm run build        # dist/vibecraft.html (single offline file) and dist/artifact.html
 ```
 
@@ -32,7 +35,9 @@ npm run build        # dist/vibecraft.html (single offline file) and dist/artifa
 | `js/core.js` | Namespace, constants, seeded random and noise |
 | `js/blocks.js`, `js/items.js` | Block and item registries, mining rules, tool stats |
 | `js/inventory.js`, `js/crafting.js`, `js/survival.js` | Pure game rules, unit-tested in Node |
-| `js/worldgen.js` | Terrain generator version 1 (unchanged from v0.1, protected by golden hashes) |
+| `js/worldgen.js`, `js/worldgen2.js` | Classic generator (v1, protected by golden hashes) and the Biomes generator (v2) |
+| `js/mobs.js`, `js/mob-models.js` | Creatures: spawning, AI, combat; their models |
+| `js/lighting.js`, `js/farterrain.js` | Sky and block light; distant terrain beyond 16 chunks |
 | `js/save.js` | World list, save format v2, v0.1 migration, export and import |
 | `js/textures.js`, `js/render.js` | Procedural art, three.js rendering |
 | `js/world.js`, `js/entities.js` | Chunks, edits, streaming, dropped items |
