@@ -22,8 +22,8 @@
   // ---------------------------------------------------------------- light colour (shared by the shader and the CPU)
   const NIGHT_SKY = 0.42;                           // sky light strength at night relative to noon
   const NIGHT_TINT = [0.56, 0.66, 1.0];             // moonlight
-  const AMBIENT = [0.045, 0.045, 0.06];             // floor so unlit caves are dark but not pitch black
-  const GAMMA = 0.35;                               // 0 = contrasty light falloff, 1 = flat (like a brightness setting)
+  const AMBIENT = [0.06, 0.06, 0.075];               // floor so unlit caves are dark but not pitch black
+  const GAMMA = 0.4;                                // 0 = contrasty light falloff, 1 = flat (like a brightness setting)
   const U_SKYMUL = { value: 1 }, U_SKYTINT = { value: null }, U_AMBIENT = { value: null };
   const LIGHT_GLSL = `
     #define BC_GAMMA ${GAMMA.toFixed(3)}
