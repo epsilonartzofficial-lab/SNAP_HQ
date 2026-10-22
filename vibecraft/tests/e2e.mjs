@@ -366,7 +366,7 @@ class Game {
     await this.page.mouse.down({ button: 'left' });
     let r;
     try { r = await w.result(); } finally { await this.page.mouse.up({ button: 'left' }); }
-    if (!r.changed) throw new Failure(`block ${x},${y},${z} (id ${hit.id}) did not break within ${timeout} ms; state ${fmt(await this.snap())}`);
+    if (!r.changed) throw new Failure(`block ${x},${y},${z} (id ${hit.id}) did not break within ${timeout} ms; state ${fmt(await this.snap())}; creatures within 4: ${fmt(await this.ev(() => { const P = BC.game.player.p; return BC.game.mobs ? BC.game.mobs.list.filter(m => Math.hypot(m.x - P.x, m.y - P.y, m.z - P.z) < 4).map(m => m.type + '@' + [m.x, m.y, m.z].map(v => v.toFixed(1))) : []; }))}`);
     const t0 = await this.ev(n0 => __e2e.mouseDowns[n0].t, n0);
     return { ...r, target: hit.id, seconds: r.t - t0 };
   }

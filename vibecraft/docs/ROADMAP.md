@@ -53,6 +53,7 @@ update: run the tests, push, publish a build, write a short report, and stop for
   containers, tools breaking, menu clicks; creatures speak now and then, when hurt, when dying, and archers when shooting.
 - Settings: Sound volume (default 70 %), saved.
 - New browser scenario M.
+- Results: unit 115/115, lighting 16/16, browser 12/13, world 5/5. Scenario B is intermittent (see HANDOFF.md).
 
 ### 0.3.1 report
 
