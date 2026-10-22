@@ -11,7 +11,7 @@
     { key: 'dirt', name: 'Dirt', tex: 'dirt', hardness: 0.5, tool: 'shovel' },
     { key: 'stone', name: 'Stone', tex: 'stone', hardness: 1.5, tool: 'pickaxe', tier: 1, drop: 'cobblestone' },
     { key: 'cobblestone', name: 'Cobblestone', tex: 'cobble', hardness: 2, tool: 'pickaxe', tier: 1 },
-    { key: 'sand', name: 'Sand', tex: 'sand', hardness: 0.5, tool: 'shovel' },
+    { key: 'sand', name: 'Sand', tex: 'sand', hardness: 0.5, tool: 'shovel', falls: true },
     { key: 'oak_log', name: 'Oak Log', tex: { top: 'log_top', side: 'log_side', bottom: 'log_top' }, hardness: 2, tool: 'axe' },
     { key: 'oak_leaves', name: 'Oak Leaves', tex: 'leaves', cutout: true, hardness: 0.2, tool: 'hoe', swordFast: true, drop: 'leaves' },
     { key: 'oak_planks', name: 'Oak Planks', tex: 'planks', hardness: 2, tool: 'axe' },
@@ -96,6 +96,9 @@
       // Reference: apple 1/200, stick 1/50 (1–2). Apples are raised to 1/20 until animals exist as a food source.
       if (rand() < 1 / 20) out.push({ key: 'apple', count: 1 });
       if (rand() < 1 / 50) out.push({ key: 'stick', count: 1 + (rand() < 0.5 ? 1 : 0) });
+      // Reference: a sapling 1/20. Leaves may name their own sapling (`sapling: key`, or null for none).
+      const sap = d.sapling === undefined ? 'oak_sapling' : d.sapling;
+      if (sap && BY_KEY[sap] && rand() < 1 / 20) out.push({ key: sap, count: 1 });
       return out;
     }
     return [{ key: d.drop || d.key, count: 1 }];
