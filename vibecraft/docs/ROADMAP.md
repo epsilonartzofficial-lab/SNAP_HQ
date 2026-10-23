@@ -52,6 +52,10 @@ update: run the tests, push, publish a build, write a short report, and stop for
 - Rendering: rotated log bark and end rings, box meshing for slabs and stairs, shaped held and dropped items, icons.
 - Physics: box collision and 0.6 step-up for the player and creatures; the crosshair hits only a block's real shape.
 - Fixed during testing: the save loader refused worlds containing oriented blocks.
+- Results: unit 120/120, lighting 16/16, browser 13/14 then 14/14 after two test-timing fixes (N: hold the button
+  until the slab appears; world C: natural random ticks paused while the test grows the sapling), world 5/5.
+- Cobblestone redrawn (rounded, lit stones in lighter mortar) and stone smoothed, after the owner found blocks hard
+  to tell apart.
 - Scenario B: its intermittent failure was the bare-hand stone dig (7.5 s of game time) running past a 20 s
   real-time limit on the slow software renderer; the limit is now 45 s.
 

@@ -376,6 +376,8 @@ scenario('C', 'Saplings: placement rules, growth into an oak with enough light (
     return { x, y, z };
   });
   await g.teleport(S.x - 0.5, S.y, S.z + 2.5);
+  // natural random ticks off while the test drives growth itself (on a slow machine the sapling could grow on its own first)
+  await g.ev(() => { BC.game.world.randomTickSpeed = 0; });
   await g.ev(() => __w.hold('oak_sapling'));
   const onStone = await g.placeOn(S.x + 2, S.y - 1, S.z, [0, 1, 0]);
   t.check(!onStone.changed, 'a sapling cannot be planted on stone', onStone);
@@ -387,6 +389,7 @@ scenario('C', 'Saplings: placement rules, growth into an oak with enough light (
   await g.teleport(S.x - 3.5, S.y, S.z + 4.5);
   // Random ticks: with a roll of 0 the growth chance passes and the tree takes the shortest (4-log) shape.
   const grown = await g.ev(s => { const W = BC.game.world; W.randomTickAt(s.x, s.y, s.z, () => 0); const col = []; for (let y = s.y - 1; y <= s.y + 5; y++) col.push(W.getBlock(s.x, y, s.z)); return { col, leaf: W.getBlock(s.x + 1, s.y + 3, s.z), top: W.getBlock(s.x, s.y + 4, s.z) }; }, S);
+  await g.ev(() => { BC.game.world.randomTickSpeed = BC.world.RANDOM_TICK_SPEED; });
   const B = await g.ev(() => BC.blocks.B);
   t.check(grown.col[0] === B.DIRT && grown.col.slice(1, 5).every(id => id === B.OAK_LOG) && grown.leaf === B.OAK_LEAVES && grown.top === B.OAK_LEAVES, 'the sapling grows into an oak: dirt, 4 logs, leaf crown', grown);
   await g.frames(4);

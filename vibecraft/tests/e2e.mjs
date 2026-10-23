@@ -1513,7 +1513,9 @@ scenario('N', 'Building blocks: logs along every axis; slabs bottom, vertical an
   await g.ev(([x, y, z]) => __e2e.aimPoint(x, y, z), [X + 2.5, Y + 1.8, Z + 1.001]);
   await g.frames(3);
   const ray = await g.ev(() => BC.game.raycast());
-  await g.page.mouse.down({ button: 'right' }); await g.page.mouse.up({ button: 'right' }); await g.frames(4);
+  const wt = await g.watch(X + 2, Y + 1, Z + 1, 4000, 2);   // hold right-click until the block appears
+  await g.page.mouse.down({ button: 'right' });
+  try { await wt.result(); } finally { await g.page.mouse.up({ button: 'right' }); }
   await g.page.keyboard.up('ShiftLeft');
   s = await at(X + 2, Y + 1, Z + 1);
   t.check(s.key === 'oak_slab' && s.st === 3, 'sneak-placing on the upper half of a wall makes a top slab', { s, ray });
