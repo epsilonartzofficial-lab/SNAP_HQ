@@ -44,9 +44,10 @@ Read this first in a new session, then `docs/ROADMAP.md` ("Update plan") and `do
   logic). Wanted: a button to open and close it (closed by default), a search box, and clicking a recipe shows a
   translucent "ghost" of its ingredients in the crafting grid (2x2 and 3x3) without moving any items; the ghost
   clears when the grid matches it or another recipe is picked; unavailable recipes greyed out.
-- **Then 0.3.5 Texture pass** (owner feedback: blocks and items hard to tell apart), 0.3.6 biome variety,
-  0.3.7 farming and breeding, 0.3.8 bow/shears/wool, 0.3.9 character creation, then stop for the desktop-app
-  decision (0.4.0). The table with what each update adds is in ROADMAP.md, "Update plan".
+- **Then** 0.3.5 phone controls, 0.3.6 texture pass, 0.3.7 time catch-up (sleep and offline), 0.3.8 trees fall,
+  0.3.9 flowing water, 0.4.0 caves v2, 0.4.1 biome variety, 0.4.2 farming, 0.4.3 bow/wool, 0.4.4 character
+  creation, then stop for the desktop-app decision (0.5.0). Owner feedback behind each is in ROADMAP.md.
+- Attack cooldown is off (owner request): `attackMob()` in `game.js` uses strength 1. The table with what each update adds is in ROADMAP.md, "Update plan".
 
 ## Usage so far (API-equivalent estimates)
 

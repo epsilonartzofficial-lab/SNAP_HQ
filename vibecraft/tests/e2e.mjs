@@ -1427,8 +1427,11 @@ scenario('L', 'Creatures: animals spawn in a Biomes world; a sword kills a pig f
   const pl = await g.placeOn(bx, by - 1, bz);
   t.check(pl.changed && pl.id >= 36 && pl.id <= 39, 'right-click places a bed', Object.assign(pl, await g.ev(() => ({ held: BC.game.state.inv[BC.game.state.sel] && __e2e.key(BC.game.state.inv[BC.game.state.sel].id), toast: document.getElementById('toast').textContent, screen: BC.game.screen, p: [BC.game.player.p.x, BC.game.player.p.y, BC.game.player.p.z], yaw: BC.game.player.yaw }))));
   await g.aim(bx, by, bz);
-  await g.page.mouse.down({ button: 'right' }); await g.page.mouse.up({ button: 'right' });
-  await g.until('BC.game.dev.time < 0.1', 8000, 'sleeping did not skip the night');
+  await g.page.mouse.down({ button: 'right' });   // held until the night is skipped (a quick click can fall between frames)
+  let toast = '';
+  try { await g.until('BC.game.dev.time < 0.1', 8000, 'sleeping did not skip the night'); }
+  catch (e) { toast = await g.ev(() => document.getElementById('toast').textContent); e.message += '; toast: ' + toast; throw e; }
+  finally { await g.page.mouse.up({ button: 'right' }); }
   s = await g.ev(() => ({ bed: BC.game.record.bed, time: BC.game.dev.time }));
   t.check(Array.isArray(s.bed), 'sleeping sets the bed as the respawn point', s);
   await g.ev(() => BC.game.dev.kill());

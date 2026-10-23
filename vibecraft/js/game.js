@@ -335,7 +335,9 @@
   function attackMob(m) {
     const s = held(), tool = IT.toolOf(s), weapon = tool && tool.type !== 'armor' ? tool : null;
     const base = weapon ? weapon.damage : 1, speed = weapon ? weapon.attackSpeed : 4;
-    const strength = S.attackStrength(attackTicks, speed);
+    // No attack cooldown for now (owner request): every hit lands at full strength. S.attackStrength keeps the
+    // reference cooldown rule for when it comes back: S.attackStrength(attackTicks, speed).
+    const strength = 1; void speed;
     let dmg = S.attackDamage(base, strength);
     const crit = S.isCrit({ strength, fallDist: player.fallDist, onGround: player.onGround, inWater: player.inWater, flying: player.fly, sprinting: player.sprinting });
     if (crit) dmg *= S.CRIT;

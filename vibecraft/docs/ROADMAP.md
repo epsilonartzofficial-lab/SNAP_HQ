@@ -37,12 +37,20 @@ update: run the tests, push, publish a build, write a short report, and stop for
 | 0.3.2 Sound | Done | Synthesized sounds: footsteps and digging by material, breaking, placing, hits, eating, splashes, pickups, clicks, creature voices; volume setting | Every common action has a sound; volume is saved |
 | 0.3.3 Building blocks | Done | Block states; logs along any axis; slabs and stairs in 16 materials, every orientation; step-up; clearer cobblestone | Every orientation places from the face you click and survives save and reload |
 | 0.3.4 Recipe book | Next | Recipe book opens and closes with a button (closed by default) and has a search box; clicking a recipe shows its items as faint "ghost" items in the crafting grid instead of moving items; the ghost clears when you fill it yourself or pick another recipe; recipes you can't make yet are greyed out | Search finds any recipe by name; the ghost shows in 2x2 and 3x3 grids; no items move unless you move them |
-| 0.3.5 Texture pass | Planned (moved up: owner feedback) | Redrawn block textures where blocks are confused (stones, ores, dirt types, woods) and clearer tool, food and armor icons | Every block and item is recognisable at hotbar size and in the world |
-| 0.3.6 Biome variety | Planned | Birch, spruce, jungle and acacia tree shapes; tall grass, ferns, dead bushes, berry bushes, biome flowers; matching distant-terrain colours | 500 blocks of walking crosses visibly different places |
-| 0.3.7 Farming and breeding | Planned | Hoe, seeds, wheat growth stages, bread; animals follow wheat, breed, babies grow up | A farm and a herd in one session |
-| 0.3.8 Bow, shears, wool | Planned | Bow and arrows, shearing, dyes from flowers, coloured wool | Craft a bow, shoot a monster, build with coloured wool |
-| 0.3.9 Character creation | Planned | Skin, hair, shirt and trousers chosen per world; first-person arm matches | Choices are saved with the world |
-| 0.4.0 Desktop app | Decide first | Electron/Tauri wrapper (hours) or a Godot rewrite (weeks); Ctrl to sprint; Ctrl+W can't close the game | The owner has chosen; an installable app runs existing worlds |
+| 0.3.5 Phone controls | Planned (owner feedback) | Controls fit inside the Claude app's artifact panel (safe areas, no buttons off-screen); fewer, clearer buttons with icons; a fullscreen button where the browser allows it | Every control reachable on a phone-sized panel; tested at several panel sizes |
+| 0.3.6 Texture pass | Planned (owner feedback) | Redrawn block textures where blocks are confused (stones, ores, dirt types, woods) and clearer tool, food and armor icons | Every block and item is recognisable at hotbar size and in the world |
+| 0.3.7 Living world: time catch-up | Planned (owner request) | Sleeping simulates the skipped night instead of jumping (saplings and crops grow, furnaces finish, creatures spawn and despawn, drops happen); leaving a world and coming back fast-forwards the time you were away (capped), shown as a short "catching up" on entry | A sapling planted before sleeping can be a tree in the morning; a furnace left smelting is done when you return |
+| 0.3.8 Trees fall; checks | Planned (owner request) | Cutting a trunk brings down the tree above it (the stump stays if you cut higher up): first version drops the logs and leaves, later a short falling animation that breaks into blocks; verify sand falling and fall damage in play, fix what's found | Cutting the bottom log fells the whole tree and every block is collected |
+| 0.3.9 Flowing water and lava | Planned (owner feedback) | Water and lava that spread and flow downhill, sources and flowing levels, buckets | Pouring water down a hill flows like the reference |
+| 0.4.0 Caves v2 | Planned (owner feedback) | New generator version: large caverns, long winding tunnels, cave lakes and dripstone-like features; old worlds keep their land (generator versions) | Exploring a cave feels like a cave system, not random holes |
+| 0.4.1 Biome variety | Planned | Birch, spruce, jungle and acacia tree shapes; tall grass, ferns, dead bushes, berry bushes, biome flowers; matching distant-terrain colours | 500 blocks of walking crosses visibly different places |
+| 0.4.2 Farming and breeding | Planned | Hoe, seeds, wheat growth stages, bread; animals follow wheat, breed, babies grow up | A farm and a herd in one session |
+| 0.4.3 Bow, shears, wool | Planned | Bow and arrows, shearing, dyes from flowers, coloured wool | Craft a bow, shoot a monster, build with coloured wool |
+| 0.4.4 Character creation | Planned | Skin, hair, shirt and trousers chosen per world; first-person arm matches | Choices are saved with the world |
+| 0.5.0 Desktop app | Decide first | Electron/Tauri wrapper (hours) or a Godot rewrite (weeks); Ctrl to sprint; Ctrl+W can't close the game | The owner has chosen; an installable app runs existing worlds |
+
+Owner notes (23 October): attack cooldown removed for now (may return later); distant terrain to 64 chunks ran
+without noticeable lag on the owner's device; logs, slabs and stairs were well received.
 
 ### 0.3.3 report
 

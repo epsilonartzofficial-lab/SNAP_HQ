@@ -46,7 +46,7 @@ The browser tests use software rendering at well under 30 fps.
 | Block orientation: logs along x, y or z; slabs and stairs for 16 materials, placed bottom, top, vertical (against walls) and upside down, stairs turned 24 ways | Working | N, unit tests. Sneak on a wall for a horizontal slab. Two slabs don't merge into a double slab yet. |
 | Step up onto slabs and stairs without jumping (0.6 blocks), for players and creatures | Working | N (player); creatures by code review only |
 | Use: crafting table, furnace, chest, bed, eat | Working | B, C, J, L |
-| Attack creatures (cooldown, critical hits, knockback, sword wear) | Working | L, unit tests for the damage rules |
+| Attack creatures (critical hits, knockback, sword wear) | Working | L, unit tests for the damage rules. The reference attack cooldown is switched off for now (owner request); every hit is full strength. |
 | Pick block (middle click) | Partial | Not covered by automated tests. |
 | Sneak | Partial | Not covered by automated tests. |
 | Sprint | Partial | Double-tap W. The reference uses Ctrl, which browsers reserve (Ctrl+W closes the tab); planned for the desktop app. |
