@@ -35,13 +35,25 @@ update: run the tests, push, publish a build, write a short report, and stop for
 |---|---|---|
 | 0.3.1 Fix and verify | All browser scenarios green, new creature scenario L, checklist and README current | Every automated test passes |
 | 0.3.2 Sound | Original generated sound effects for steps, mining, placing, hits, eating, animals, monsters, water; volume setting | Every common action has a sound; volume is saved |
-| 0.3.3 Building blocks | Logs placed along any axis; slabs and stairs for each wood and stone, placed on top, bottom, vertical, upside down and turned every way | Every orientation places from the face you click and survives save and reload |
+| 0.3.3 Building blocks (done) | Logs placed along any axis; slabs and stairs for each wood and stone, placed on top, bottom, vertical, upside down and turned every way | Every orientation places from the face you click and survives save and reload |
 | 0.3.4 Biome variety | Birch, spruce, jungle and acacia tree shapes; tall grass, ferns, dead bushes, berry bushes, biome flowers | 500 blocks of walking crosses visibly different places |
 | 0.3.5 Farming and breeding | Hoe, seeds, wheat growth stages, bread; animals follow wheat, breed, babies grow up | A farm and a herd in one session |
 | 0.3.6 Bow, shears, wool | Bow and arrows, shearing, dyes from flowers, coloured wool | Craft a bow, shoot a monster, build with coloured wool |
 | 0.3.7 Item art | Redrawn tool, food and armor icons and held items | Every item is recognisable at hotbar size |
 | 0.3.8 Character creation | Skin, hair, shirt and trousers chosen per world; first-person arm matches | Choices are saved with the world |
 | 0.3.9 Desktop app | Electron package; Ctrl to sprint; Ctrl+W can't close the game | An installable app runs existing worlds |
+
+### 0.3.3 report
+
+- Block states: a sparse per-chunk map of orientation bytes next to the block ids; saved in edits as
+  `id + state * 256`, so older saves load unchanged. `world.getState()`, `world.setBlock(x, y, z, id, state)`.
+- `js/blocks-building.js`: log axis, 16 materials × (slab, stairs) at ids 160–191, boxes for every state,
+  placement rules; `js/recipes-building.js`: 3 in a row → 6 slabs, staircase → 4 stairs.
+- Rendering: rotated log bark and end rings, box meshing for slabs and stairs, shaped held and dropped items, icons.
+- Physics: box collision and 0.6 step-up for the player and creatures; the crosshair hits only a block's real shape.
+- Fixed during testing: the save loader refused worlds containing oriented blocks.
+- Scenario B: its intermittent failure was the bare-hand stone dig (7.5 s of game time) running past a 20 s
+  real-time limit on the slow software renderer; the limit is now 45 s.
 
 ### 0.3.2 report
 

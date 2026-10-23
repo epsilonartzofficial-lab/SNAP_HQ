@@ -197,7 +197,7 @@
       const k = BC.world.ckey(x >> 4, z >> 4), ch = w.chunks.get(k);
       if (!ch) continue;
       const i = BC.worldgen.IDX(x & 15, y, z & 15);
-      ch.data[i] = id;
+      ch.data[i] = id; if (ch.states) ch.states.delete(i);
       let e = w.edits.get(k); if (!e) { e = new Map(); w.edits.set(k, e); } e.set(i, id);
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) touched.add(BC.world.ckey((x >> 4) + dx, (z >> 4) + dz));
     }

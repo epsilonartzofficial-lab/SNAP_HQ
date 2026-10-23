@@ -2,7 +2,7 @@
 
 A survival sandbox for the browser, inspired by Minecraft Java Edition. All code, textures and names are original.
 
-**Version 0.3.2.** Sound effects for nearly everything. Survival with animals and monsters, melee combat, armor, beds, furnaces and chests, torches
+**Version 0.3.3.** Logs in any direction; slabs and stairs every way round. Sound effects for nearly everything. Survival with animals and monsters, melee combat, armor, beds, furnaces and chests, torches
 and real lighting, a biome world generator (39 biomes) and a view distance of up to 64 chunks (full blocks
 out to 16, simplified distant terrain beyond). Creative mode keeps flight and unlimited blocks. A developer
 console (`/` or T) and panel (F4) help with testing.
@@ -24,7 +24,7 @@ Q to drop.
 
 ```
 npm test             # 115 unit tests for the rules (Node 22, no dependencies)
-npm run e2e          # 13 browser scenarios in headless Chromium (needs Playwright)
+npm run e2e          # 14 browser scenarios in headless Chromium (needs Playwright)
 node tests/e2e-world.mjs   # 5 lighting and world-system browser scenarios
 node tests/lighting.mjs    # 16 lighting engine tests
 npm run build        # dist/vibecraft.html (single offline file) and dist/artifact.html

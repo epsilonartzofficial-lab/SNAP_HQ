@@ -369,17 +369,33 @@
     function boxHitsBlocks(m, x, y, z) {
       const hw = m.sp.w / 2;
       const x0 = Math.floor(x - hw), x1 = Math.floor(x + hw - 1e-6), y0 = Math.floor(y), y1 = Math.floor(y + m.sp.h - 1e-6), z0 = Math.floor(z - hw), z1 = Math.floor(z + hw - 1e-6);
-      for (let yy = y0; yy <= y1; yy++) for (let zz = z0; zz <= z1; zz++) for (let xx = x0; xx <= x1; xx++) if (SOLID[world.getBlock(xx, yy, zz)]) return true;
-      return false;
+      let hit = null;
+      for (let yy = y0; yy <= y1; yy++) for (let zz = z0; zz <= z1; zz++) for (let xx = x0; xx <= x1; xx++) {
+        const id = world.getBlock(xx, yy, zz);
+        if (!SOLID[id]) continue;
+        // slabs and stairs collide with their own boxes (BC.building), other solid blocks as full cubes
+        const list = BC.building && world.getState ? BC.building.boxes(id, world.getState(xx, yy, zz)) : null;
+        for (const b of list || FULL) {
+          if (!(x - hw < xx + b[3] - 1e-7 && x + hw > xx + b[0] + 1e-7 && y < yy + b[4] - 1e-7 && y + m.sp.h > yy + b[1] + 1e-7 && z - hw < zz + b[5] - 1e-7 && z + hw > zz + b[2] + 1e-7)) continue;
+          if (!hit) hit = { top: -Infinity, bottom: Infinity };
+          hit.top = Math.max(hit.top, yy + b[4]); hit.bottom = Math.min(hit.bottom, yy + b[1]);
+        }
+      }
+      return hit;
     }
+    const FULL = [[0, 0, 0, 1, 1, 1]];
     const overlapsPlayer = (m, x, y, z, P) => !!P && P.alive && Math.abs(x - P.x) < m.sp.w / 2 + 0.3 && Math.abs(z - P.z) < m.sp.w / 2 + 0.3 && y < P.y + P.h && y + m.sp.h > P.y;
     function moveAxis(m, axis, d, P) {
       if (!d) return false;
-      const nx = axis === 0 ? m.x + d : m.x, ny = axis === 1 ? m.y + d : m.y, nz = axis === 2 ? m.z + d : m.z;
+      const nx = axis === 0 ? m.x + d : m.x, nz = axis === 2 ? m.z + d : m.z;
+      let ny = axis === 1 ? m.y + d : m.y;
       if (axis !== 1 && !ready(nx, nz)) return true;   // the edge of loaded terrain acts as a wall
-      if (boxHitsBlocks(m, nx, ny, nz)) {
-        if (axis === 1) { if (d < 0) m.y = Math.floor(ny) + 1; else m.y = Math.floor(ny + m.sp.h) - m.sp.h - 1e-4; }
-        return true;
+      const hit = boxHitsBlocks(m, nx, ny, nz);
+      if (hit) {
+        if (axis === 1) { if (d < 0) m.y = hit.top; else m.y = hit.bottom - m.sp.h - 1e-4; return true; }
+        // walk up onto steps up to 0.6 high (slabs, stairs), as the reference's step height
+        if (!(m.onGround && hit.top - m.y <= 0.6 && !boxHitsBlocks(m, nx, hit.top, nz))) return true;
+        ny = hit.top;
       }
       if (axis !== 1 && overlapsPlayer(m, nx, ny, nz, P) && !overlapsPlayer(m, m.x, m.y, m.z, P)) return true;   // don't walk into the player
       m.x = nx; m.y = ny; m.z = nz;

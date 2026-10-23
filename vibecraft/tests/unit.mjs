@@ -1044,6 +1044,39 @@ suite('combat', () => {
   });
 });
 
+suite('building blocks', () => {
+  const BLD = BC.building, vol = list => list.reduce((v, b) => v + (b[3] - b[0]) * (b[4] - b[1]) * (b[5] - b[2]), 0);
+  test('slabs: six halves, each against its own face', () => {
+    for (let f = 0; f < 6; f++) {
+      const [b] = BLD.SLAB_BOXES[f], a = f >> 1;
+      assert.equal(vol([b]), 0.5);
+      assert.ok(f & 1 ? b[a + 3] === 1 && b[a] === 0.5 : b[a] === 0 && b[a + 3] === 0.5, 'slab ' + f + ' touches its face');
+    }
+  });
+  test('stairs: 24 distinct orientations of three quarters of a block', () => {
+    const seen = new Set();
+    for (let s = 0; s < 24; s++) { const list = BLD.STAIR_BOXES[s]; assert.equal(vol(list), 0.75, 'state ' + s); seen.add(JSON.stringify(list)); }
+    assert.equal(seen.size, 24);
+  });
+  test('placement: logs follow the clicked axis, slabs sit against the clicked face, sneak picks a horizontal slab on walls', () => {
+    const B2 = BC.blocks.B, P = (k, n, look, hy, sn) => BLD.placementState(B2[k.toUpperCase()], n, look || [0, 0, 1], hy == null ? 0.5 : hy, !!sn);
+    same([P('oak_log', [0, 1, 0]), P('oak_log', [1, 0, 0]), P('oak_log', [0, 0, -1])], [0, 1, 2]);
+    same([P('oak_slab', [0, 1, 0]), P('oak_slab', [0, -1, 0]), P('oak_slab', [1, 0, 0]), P('oak_slab', [0, 0, 1])], [2, 3, 0, 4], 'bottom, top, vertical against the clicked block');
+    same([P('oak_slab', [1, 0, 0], null, 0.8, true), P('oak_slab', [1, 0, 0], null, 0.2, true)], [3, 2], 'sneaking on a wall: top or bottom half by the hit height');
+    same(P('cobblestone_stairs', [0, 1, 0], [0, -0.3, 0.95]), 2 * 4 + 3, 'on the ground, the step goes the way you look (+z)');
+    same(P('cobblestone_stairs', [0, -1, 0], [-0.95, 0.3, 0]), 3 * 4 + 0, 'under a ceiling: upside-down stairs, step toward -x');
+    same(P('cobblestone_stairs', [0, 0, 1], [0, 0.9, -0.2]), 4 * 4 + 3, 'on a wall: vertical stairs, step upward (PERP[4][3] is +y)');
+    assert.equal(P('stone', [0, 1, 0]), 0, 'plain blocks have no state');
+  });
+  test('16 materials have slabs and stairs; recipes make 6 slabs and 4 stairs', () => {
+    assert.equal(BLD.MATERIALS.length, 16);
+    const id = k => IT.key(k).id, P = id('oak_planks');
+    const r1 = CR.match([0, 0, 0, 0, 0, 0, P, P, P], 3), r2 = CR.match([P, 0, 0, P, P, 0, P, P, P], 3);
+    same([IT.get(r1.outId).key, r1.count, IT.get(r2.outId).key, r2.count], ['oak_slab', 6, 'oak_stairs', 4]);
+    assert.ok(BC.blocks.DEFS[BC.blocks.B.OAK_SLAB].hardness === BC.blocks.DEFS[BC.blocks.B.OAK_PLANKS].hardness, 'slabs mine like their material');
+  });
+});
+
 suite('save', () => {
   const V1_SAVE = {
     seed: 4051750246, edits: { '0,0': [5, 3] },
@@ -1085,6 +1118,16 @@ suite('save', () => {
     assert.equal(r.ok, false);
     assert.match(r.error, /newer version/);
     assert.equal(store.loadWorld('nope').ok, false);
+  });
+  test('edits with orientation states (id + state * 256) load; unknown ids are still refused', () => {
+    const storage = SAVE.memoryStorage(), store = SAVE.createStore(storage);
+    const w = store.newWorld({ name: 'S', seed: 1 }).world;
+    w.edits = { '0,0': [5, B.OAK_SLAB | (3 << 8), 6, B.OAK_LOG | (1 << 8), 7, B.DIRT] };
+    assert.equal(store.saveWorld(w).ok, true);
+    same(store.loadWorld(w.id).world.edits['0,0'], [5, B.OAK_SLAB | (3 << 8), 6, B.OAK_LOG | (1 << 8), 7, B.DIRT]);
+    w.edits = { '0,0': [5, 250 | (2 << 8)] };
+    storage.setItem(SAVE.KEY_WORLD(w.id), JSON.stringify(w));
+    assert.match(store.loadWorld(w.id).error, /newer version/);
   });
 
   test('listWorlds is sorted by lastPlayed, newest first', () => {

@@ -100,9 +100,10 @@
         if (!Array.isArray(arr) || !/^-?\d+,-?\d+$/.test(k)) { delete w.edits[k]; continue; }
         const clean = [];
         for (let i = 0; i + 1 < arr.length; i += 2) {
-          const idx = arr[i], id = arr[i + 1];
-          if (Number.isInteger(id) && id > 0 && !BC.blocks.exists(id)) throw new Error('This world contains blocks from a newer version of Vibecraft');
-          if (Number.isInteger(idx) && idx >= 0 && idx < vol && Number.isInteger(id) && id >= 0) clean.push(idx, id);
+          // an edit is a block id plus its orientation state * 256 (see world.js)
+          const idx = arr[i], v = arr[i + 1], id = Number.isInteger(v) ? v & 255 : v;
+          if (Number.isInteger(v) && (v > 65535 || (id > 0 && !BC.blocks.exists(id)))) throw new Error('This world contains blocks from a newer version of Vibecraft');
+          if (Number.isInteger(idx) && idx >= 0 && idx < vol && Number.isInteger(v) && v >= 0) clean.push(idx, v);
         }
         w.edits[k] = clean;
       }

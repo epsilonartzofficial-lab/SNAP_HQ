@@ -34,7 +34,8 @@
     each((x, y) => { let c = jit([128, 90, 62], r, 28); const q = r(); if (q < 0.1) c = [98, 70, 48]; else if (q < 0.14) c = [152, 116, 84]; px(x, y, c); });
   }
   function stoneTex(px, r) {
-    each((x, y) => px(x, y, jit([124, 124, 126], r, 22)));
+    const band = []; for (let y = 0; y < 16; y++) band.push((r() - 0.5) * 8);
+    each((x, y) => px(x, y, jit([130 + band[y], 130 + band[y], 132 + band[y]], r, 14)));
     for (let k = 0; k < 7; k++) { const x0 = (r() * 16) | 0, y0 = (r() * 16) | 0, len = 2 + ((r() * 3) | 0); for (let i = 0; i < len; i++) px((x0 + i) & 15, y0, jit([100, 100, 103], r, 10)); }
   }
   function oreTex(color) {
@@ -63,17 +64,27 @@
   paint('grass_side', (px, r) => { dirtTex(px, r); for (let x = 0; x < 16; x++) { const d = 3 + (r() < 0.5 ? 1 : 0) + (r() < 0.25 ? 1 : 0); for (let y = 0; y < d; y++) px(x, y, jit(GRASS_C, r, 30)); } });
   paint('dirt', dirtTex);
   paint('stone', stoneTex);
+  // Cobblestone: rounded stones of different greys, lit from the top left (highlight up-left, shadow down-right),
+  // set in lighter mortar, so it reads clearly apart from smooth stone and gravel.
   paint('cobble', (px, r) => {
-    const pts = []; for (let i = 0; i < 9; i++) pts.push([r() * 16, r() * 16, 92 + r() * 52]);
+    const pts = [];
+    for (let i = 0; i < 10; i++) pts.push([r() * 16, r() * 16, 118 + r() * 46, (r() - 0.5) * 8]);
     each((x, y) => {
-      let d1 = 1e9, d2 = 1e9, s = 0;
+      let d1 = 1e9, d2 = 1e9, best = null, vx = 0, vy = 0;
       for (const p of pts) {
-        let dx = Math.abs(x + 0.5 - p[0]), dy = Math.abs(y + 0.5 - p[1]);
-        dx = Math.min(dx, 16 - dx); dy = Math.min(dy, 16 - dy);
+        let dx = p[0] - (x + 0.5), dy = p[1] - (y + 0.5);
+        if (dx > 8) dx -= 16; else if (dx < -8) dx += 16;
+        if (dy > 8) dy -= 16; else if (dy < -8) dy += 16;
         const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < d1) { d2 = d1; d1 = d; s = p[2]; } else if (d < d2) d2 = d;
+        if (d < d1) { d2 = d1; d1 = d; best = p; vx = dx; vy = dy; } else if (d < d2) d2 = d;
       }
-      px(x, y, d2 - d1 < 1.1 ? jit([66, 66, 70], r, 10) : jit([s, s, s + 3], r, 14));
+      const edge = d2 - d1;
+      if (edge < 0.9) return px(x, y, jit([86, 84, 80], r, 8));   // mortar
+      // pixels up-left of the stone's centre catch the light; near the rim it rounds off into shadow
+      let v = best[2] + (vx + vy) * 3.2 - (edge < 1.8 ? 16 : 0);
+      if (edge < 1.8 && vx + vy > 0) v += 10;   // bright rim on the lit side
+      const c = jit([v, v, v + best[3] * 0.5], r, 10);
+      px(x, y, [c[0] + best[3], c[1] + best[3] * 0.6, c[2]]);
     });
   });
   paint('sand', (px, r) => each((x, y) => px(x, y, r() < 0.08 ? [194, 178, 128] : jit([220, 208, 160], r, 16))));
@@ -247,6 +258,26 @@
       if (dark) { x.globalCompositeOperation = 'source-atop'; x.fillStyle = `rgba(0,0,0,${dark})`; x.fillRect(0, 0, 16, 16); }
     };
     x.globalAlpha = LIQUID[id] ? 0.85 : 1;
+    const shape = BC.blocks.SHAPE[id];
+    if (shape === 'slab' || shape === 'stairs') {
+      // part of a face: source rect (sx, sy, sw, sh) of the 16x16 tile drawn at the same place in face space
+      const part = (tile, m, dark, sx, sy, sw, sh, ox, oy) => {
+        x.setTransform(m[0], m[1], m[2], m[3], m[4] + (ox || 0), m[5] + (oy || 0));
+        x.globalCompositeOperation = 'source-over';
+        x.drawImage(atlas, (tile % ATW) * TS + sx * TS / 16, Math.floor(tile / ATW) * TS + sy * TS / 16, sw * TS / 16, sh * TS / 16, sx, sy, sw, sh);
+        if (dark) { x.globalCompositeOperation = 'source-atop'; x.fillStyle = `rgba(0,0,0,${dark})`; x.fillRect(sx, sy, sw, sh); }
+      };
+      const L = [14 / 16, 7 / 16, 0, 14 / 16, 2, 9], Fm = [14 / 16, -7 / 16, 0, 14 / 16, 16, 16], Tm = [14 / 16, 7 / 16, -14 / 16, 7 / 16, 16, 2];
+      if (shape === 'slab') {
+        part(t[0], L, 0.28, 0, 8, 16, 8); part(t[5], Fm, 0.42, 0, 8, 16, 8); part(t[3], Tm, 0, 0, 0, 16, 16, 0, 7);
+      } else {
+        // bottom half, then the step on the back half (toward the top corner of the icon)
+        part(t[0], L, 0.28, 0, 8, 16, 8); part(t[5], Fm, 0.42, 0, 8, 16, 8); part(t[3], Tm, 0, 8, 0, 8, 16, 0, 7);
+        part(t[0], L, 0.28, 0, 0, 8, 8); part(t[5], Fm, 0.42, 0, 0, 16, 8, -7, -3.5); part(t[3], Tm, 0, 0, 0, 8, 16);
+      }
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      return c;
+    }
     face(t[0], [14 / 16, 7 / 16, 0, 14 / 16, 2, 9], 0.28);
     face(t[5], [14 / 16, -7 / 16, 0, 14 / 16, 16, 16], 0.42);
     face(t[3], [14 / 16, 7 / 16, -14 / 16, 7 / 16, 16, 2], 0);

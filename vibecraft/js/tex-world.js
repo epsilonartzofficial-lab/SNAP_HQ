@@ -42,7 +42,7 @@
   const baseIcon = T.iconURL, flatIcons = new Map();
   T.iconURL = function (itemId) {
     const d = BC.items.get(itemId);
-    if (!d || d.kind !== 'block' || BC.blocks.SHAPE[d.block] === 'cube') return baseIcon(itemId);
+    if (!d || d.kind !== 'block' || ['cube', 'slab', 'stairs'].includes(BC.blocks.SHAPE[d.block])) return baseIcon(itemId);
     if (flatIcons.has(itemId)) return flatIcons.get(itemId);
     const tile = T.TILE[BC.blocks.faceTiles(d.block)[0]];
     const c = document.createElement('canvas'); c.width = c.height = 32;

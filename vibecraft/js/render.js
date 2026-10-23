@@ -147,6 +147,11 @@
     F.s = F.c.map(C => { const s1 = [0, 0, 0], s2 = [0, 0, 0]; s1[axes[0]] = C[axes[0]] ? 1 : -1; s2[axes[1]] = C[axes[1]] ? 1 : -1; return [s1, s2]; });
   }
   R.FACES = FACES;
+  // For box faces: which coordinate gives u and v on each face (and whether it runs backwards), read off FACES.
+  const UVMAP = FACES.map(F => {
+    const pick = k => { for (let a = 0; a < 3; a++) { if (F.c.every(C => C[k] === C[a])) return [a, false]; if (F.c.every(C => C[k] === 1 - C[a])) return [a, true]; } return [0, false]; };
+    return { u: pick(3), v: pick(4) };
+  });
   const P = CS + 2, PP = P * P;
   const pad = new Uint8Array(PP * (WH + 2));    // block ids of the chunk plus a 1-cell border
   const padL = new Uint8Array(PP * (WH + 2));   // their light (sky << 4 | block)
@@ -163,7 +168,7 @@
   const CHUNK_SPHERE = new THREE.Sphere(new THREE.Vector3(CS / 2, WH / 2, CS / 2), Math.hypot(CS / 2, WH / 2, CS / 2));
 
   // Shapes for the mesher: 0 cube, 1 cross (plants), 2 torch. Leaves-like blocks show their inner faces.
-  const SHAPE_ID = new Uint8Array(256), LEAFY = new Uint8Array(256);
+  const SHAPE_ID = new Uint8Array(256), LEAFY = new Uint8Array(256), AXIS = new Uint8Array(256);
   let torchGeo = [];
   function faceVisible(id, n) {
     if (n === 0) return true;
@@ -220,20 +225,28 @@
     }
     const O = OB, Wt = WB;
     O.nv = O.ni = Wt.nv = Wt.ni = 0;
+    const states = ch.states, IDX = BC.worldgen.IDX;
+    const stAt = (x, y, z) => (states ? states.get(IDX(x, y, z)) || 0 : 0);
     for (let y = 0; y < WH; y++) for (let z = 0; z < CS; z++) {
       let ci = PI(0, y, z);
       for (let x = 0; x < CS; x++, ci++) {
         const id = pad[ci];
         if (!id) continue;
         const shape = SHAPE_ID[id];
+        if (shape === 3) { emitBoxes(O, id, BC.building.boxes(id, stAt(x, y, z)), x, y, z, ci); continue; }
         if (shape) { emitShape(O, shape, id, x, y, z, padL[ci]); continue; }
+        const st = AXIS[id] ? stAt(x, y, z) : 0;
         const liquid = LIQUID[id];
         for (let f = 0; f < 6; f++) {
           const oi = ci + DOFF[f];
           if (!faceVisible(id, pad[oi])) continue;
           const Tg = liquid ? Wt : O;
           reserve(Tg, 4, 6);
-          const base = Tg.nv, F = FACES[f], tile = T.BTEX[id][f];
+          const base = Tg.nv, F = FACES[f];
+          // logs lying along x or z: rings on the end faces, bark turned to run along the log elsewhere
+          let tile = T.BTEX[id][f], rot = false;
+          if (st === 1) { if (f < 2) tile = T.BTEX[id][3]; else { tile = T.BTEX[id][0]; rot = true; } }
+          else if (st === 2) { if (f >= 4) tile = T.BTEX[id][3]; else { tile = T.BTEX[id][0]; rot = f < 2; } }
           const u0 = (tile % T.ATW) / T.ATW, v0 = 1 - (Math.floor(tile / T.ATW) + 1) / T.ATH;
           const lowerTop = liquid && !LIQUID[pad[ci + PP]];
           const s1f = S1[f], s2f = S2[f], sh8 = SHADE8[f];
@@ -250,7 +263,7 @@
             const skv = AVG[n * 64 + sk], blv = AVG[n * 64 + bl];
             ao[c] = a; lv[c] = AOL[a] * (40 + Math.max(skv, blv));
             vtx(Tg, x + C[0], y + C[1] - (lowerTop && C[1] ? 0.12 : 0), z + C[2],
-              u0 + (C[3] * (1 - 2 * UVE) + UVE) / T.ATW, v0 + (C[4] * (1 - 2 * UVE) + UVE) / T.ATH, sh8[a], skv, blv);
+              u0 + ((rot ? C[4] : C[3]) * (1 - 2 * UVE) + UVE) / T.ATW, v0 + ((rot ? 1 - C[3] : C[4]) * (1 - 2 * UVE) + UVE) / T.ATH, sh8[a], skv, blv);
           }
           // split the quad along the diagonal that keeps AO and light gradients symmetric
           quad(Tg, base, lv[1] + lv[2] > lv[0] + lv[3]);
@@ -263,6 +276,26 @@
     R.stats.meshes++; R.stats.meshMs += performance.now() - t0;
     return true;
   };
+
+  // ---- boxes (slabs, stairs): each face takes the light of the cell it faces, or of its own cell inside the block
+  function emitBoxes(b, id, list, x, y, z, ci) {
+    for (const bx of list) for (let f = 0; f < 6; f++) {
+      const F = FACES[f], a = f >> 1, onEdge = f & 1 ? bx[a + 3] === 1 : bx[a] === 0;
+      const oi = ci + DOFF[f];
+      if (onEdge && OPAQUE[pad[oi]]) continue;
+      const L = onEdge ? padL[oi] : padL[ci], sky = (L >> 4) * 17, blk = (L & 15) * 17, c = SHADE8[f][3];
+      const tile = T.BTEX[id][f], u0 = (tile % T.ATW) / T.ATW, v0 = 1 - (Math.floor(tile / T.ATW) + 1) / T.ATH, M = UVMAP[f];
+      reserve(b, 4, 6);
+      const base = b.nv;
+      for (const C of F.c) {
+        const p = [C[0] ? bx[3] : bx[0], C[1] ? bx[4] : bx[1], C[2] ? bx[5] : bx[2]];
+        const u = M.u[1] ? 1 - p[M.u[0]] : p[M.u[0]], v = M.v[1] ? 1 - p[M.v[0]] : p[M.v[0]];
+        vtx(b, x + p[0], y + p[1], z + p[2], u0 + (u * (1 - 2 * UVE) + UVE) / T.ATW, v0 + (v * (1 - 2 * UVE) + UVE) / T.ATH, c, sky, blk);
+      }
+      quad(b, base, false);
+    }
+  }
+  R.UVMAP = UVMAP;
 
   // ---- shaped blocks
   function emitShape(b, shape, id, x, y, z, L) {
@@ -296,8 +329,9 @@
   function initShapes() {
     for (let id = 1; id < DEFS.length; id++) {
       const d = DEFS[id]; if (!d) continue;
-      SHAPE_ID[id] = SHAPE[id] === 'cross' ? 1 : SHAPE[id] === 'torch' ? 2 : 0;
+      SHAPE_ID[id] = SHAPE[id] === 'cross' ? 1 : SHAPE[id] === 'torch' ? 2 : SHAPE[id] === 'slab' || SHAPE[id] === 'stairs' ? 3 : 0;
       LEAFY[id] = /leaves/.test(d.key) ? 1 : 0;
+      AXIS[id] = d.axis ? 1 : 0;
       if (SHAPE_ID[id] === 2) torchGeo[id] = buildTorch(id, d);
     }
   }
@@ -373,11 +407,15 @@
   function blockGeometry(id, size) {
     const k = 'b' + id + ':' + size; if (geoCache.has(k)) return geoCache.get(k);
     const Tg = { pos: [], uv: [], col: [], idx: [] };
-    for (let f = 0; f < 6; f++) {
-      const F = FACES[f], base = Tg.pos.length / 3, [u0, v0] = tileUV(T.BTEX[id][f]);
+    // slabs show as a bottom slab, stairs as plain stairs (step at the back); everything else as a full cube
+    const shaped = BC.building && BC.building.boxes(id, SHAPE[id] === 'stairs' ? 8 + 3 : 2);
+    for (const bx of shaped || [[0, 0, 0, 1, 1, 1]]) for (let f = 0; f < 6; f++) {
+      const F = FACES[f], base = Tg.pos.length / 3, [u0, v0] = tileUV(T.BTEX[id][f]), M = UVMAP[f];
       for (const C of F.c) {
-        Tg.pos.push((C[0] - 0.5) * size, (C[1] - 0.5) * size, (C[2] - 0.5) * size);
-        Tg.uv.push(u0 + (C[3] * (1 - 2 * UVE) + UVE) / T.ATW, v0 + (C[4] * (1 - 2 * UVE) + UVE) / T.ATH);
+        const p = [C[0] ? bx[3] : bx[0], C[1] ? bx[4] : bx[1], C[2] ? bx[5] : bx[2]];
+        const u = M.u[1] ? 1 - p[M.u[0]] : p[M.u[0]], v = M.v[1] ? 1 - p[M.v[0]] : p[M.v[0]];
+        Tg.pos.push((p[0] - 0.5) * size, (p[1] - 0.5) * size, (p[2] - 0.5) * size);
+        Tg.uv.push(u0 + (u * (1 - 2 * UVE) + UVE) / T.ATW, v0 + (v * (1 - 2 * UVE) + UVE) / T.ATH);
         Tg.col.push(SHADE[f], SHADE[f], SHADE[f]);
       }
       Tg.idx.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
@@ -402,7 +440,7 @@
     const g = planeUV(new THREE.PlaneGeometry(size, size), u0, v0, 1 / T.ATW, 1 / T.ATH);
     geoCache.set(k, g); return g;
   }
-  const isFlat = d => d.kind === 'block' && SHAPE[d.block] !== 'cube';
+  const isFlat = d => d.kind === 'block' && (SHAPE[d.block] === 'cross' || SHAPE[d.block] === 'torch');
   const own = (geo, mat) => { const m = new THREE.Mesh(geo, mat.clone()); m.userData.ownMat = true; return m; };
   // A mesh for a dropped item stack (own material, tinted by the light where it lies).
   R.itemMesh = function (itemId) {

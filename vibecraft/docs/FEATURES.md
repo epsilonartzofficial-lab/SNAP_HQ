@@ -10,7 +10,7 @@ Three states only:
 Reference: Minecraft Java Edition 26.3 (stable, 15 September 2026). Reference numbers and sources are in
 [research/REFERENCE-NOTES.md](research/REFERENCE-NOTES.md).
 
-**Last updated: v0.3.2.** Results: 115/115 unit tests, 16/16 lighting tests; browser results are in the
+**Last updated: v0.3.3.** Results: 115/115 unit tests, 16/16 lighting tests; browser results are in the
 v0.3.1 report in [ROADMAP.md](ROADMAP.md). Nothing was tested on a physical phone or tablet, or on a GPU.
 The browser tests use software rendering at well under 30 fps.
 
@@ -29,6 +29,7 @@ The browser tests use software rendering at well under 30 fps.
 | I | Crossing chunk borders: streaming, meshing, generator determinism, edits survive unload |
 | J | Furnace smelting, chest storage across reload, broken containers spill their contents |
 | K | Developer console and panel: commands, completion, cheats gating |
+| N | Logs along every axis; slabs bottom, vertical and top; stairs upright and upside down; walking up a slab; aiming through a slab's empty half; orientation survives save and reload |
 | M | Audio unlocks on the first click; walking, placing, digging, breaking and hitting make sounds; all sounds synthesize without errors and are audible; volume slider saves |
 | L | Animals spawn in a Biomes world; two sword hits kill a pig for raw pork; shift-click equips a chestplate and the armor bar shows; a bed skips the night and is the respawn point |
 | W-A–W-E | Torch light across chunk borders, torches dropping, sapling growth and grass, falling sand, day/night shading |
@@ -42,6 +43,8 @@ The browser tests use software rendering at well under 30 fps.
 | First-person arm, held item, swing, equip and eating animation | Working | Manual screenshots. The arm is textured and posed low right like the reference. |
 | Mine (hold, timed by block and tool) | Working | B, unit tests |
 | Place blocks | Working | B, F |
+| Block orientation: logs along x, y or z; slabs and stairs for 16 materials, placed bottom, top, vertical (against walls) and upside down, stairs turned 24 ways | Working | N, unit tests. Sneak on a wall for a horizontal slab. Two slabs don't merge into a double slab yet. |
+| Step up onto slabs and stairs without jumping (0.6 blocks), for players and creatures | Working | N (player); creatures by code review only |
 | Use: crafting table, furnace, chest, bed, eat | Working | B, C, J, L |
 | Attack creatures (cooldown, critical hits, knockback, sword wear) | Working | L, unit tests for the damage rules |
 | Pick block (middle click) | Partial | Not covered by automated tests. |

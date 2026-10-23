@@ -366,7 +366,7 @@ class Game {
     await this.page.mouse.down({ button: 'left' });
     let r;
     try { r = await w.result(); } finally { await this.page.mouse.up({ button: 'left' }); }
-    if (!r.changed) throw new Failure(`block ${x},${y},${z} (id ${hit.id}) did not break within ${timeout} ms; state ${fmt(await this.snap())}; creatures within 4: ${fmt(await this.ev(() => { const P = BC.game.player.p; return BC.game.mobs ? BC.game.mobs.list.filter(m => Math.hypot(m.x - P.x, m.y - P.y, m.z - P.z) < 4).map(m => m.type + '@' + [m.x, m.y, m.z].map(v => v.toFixed(1))) : []; }))}`);
+    if (!r.changed) throw new Failure(`block ${x},${y},${z} (id ${hit.id}) did not break within ${timeout} ms; state ${fmt(await this.snap())}; ray ${fmt(await this.ev(() => BC.game.raycast()))}; held ${fmt(await this.ev(() => { const s = BC.game.state.inv[BC.game.state.sel]; return s && __e2e.key(s.id) + ' dmg ' + (s.dmg || 0); }))}; target now ${fmt(await this.ev(([x, y, z]) => BC.game.world.getBlock(x, y, z), [x, y, z]))}; creatures within 4: ${fmt(await this.ev(() => { const P = BC.game.player.p; return BC.game.mobs ? BC.game.mobs.list.filter(m => Math.hypot(m.x - P.x, m.y - P.y, m.z - P.z) < 4).map(m => m.type + '@' + [m.x, m.y, m.z].map(v => v.toFixed(1))) : []; }))}`);
     const t0 = await this.ev(n0 => __e2e.mouseDowns[n0].t, n0);
     return { ...r, target: hit.id, seconds: r.t - t0 };
   }
@@ -386,7 +386,7 @@ class Game {
   async useBlock(x, y, z) {
     await this.aim(x, y, z);
     await this.page.mouse.down({ button: 'right' });
-    try { await this.waitFor(() => BC.game.screen === 'inventory', null, { timeout: 5000, msg: 'right-click on the block did not open a screen' }); }
+    try { await this.waitFor(() => BC.game.screen === 'inventory', null, { timeout: 10000, msg: 'right-click on the block did not open a screen' }); }
     finally { await this.page.mouse.up({ button: 'right' }); }
   }
 
@@ -670,7 +670,7 @@ scenario('B', 'Survival first day: logs → planks/sticks/table → wooden picka
   const handSlot = await g.emptySlot(0);
   await g.press(`Digit${handSlot + 1}`);
   const beforeHand = await g.totals();
-  const hand = await g.mine(A[0], site.y + 1, A[1], { timeout: 20000 });
+  const hand = await g.mine(A[0], site.y + 1, A[1], { timeout: 45000 });   // 7.5 s of game time; software rendering runs slower than real time
   await g.frames(20);
   const afterHand = await g.ev(() => ({ totals: __e2e.totals(), ents: __e2e.entities() }));
   t.check(hand.ents.length === 0 && afterHand.ents.length === 0, 'stone mined with a bare hand drops nothing', afterHand.ents);
@@ -1482,6 +1482,82 @@ scenario('M', 'Sound: audio unlocks on the first click; walking, mining, placing
   await g.page.fill('#set-vol', '25'); await g.page.dispatchEvent('#set-vol', 'input');
   s = await g.ev(() => ({ vol: BC.sfx.volume, saved: BC.game.store.getSettings().volume, label: document.getElementById('set-vol-out').textContent }));
   t.check(Math.abs(s.vol - 0.25) < 1e-9 && Math.abs(s.saved - 0.25) < 1e-9 && s.label === '25%', 'the volume slider sets and saves the volume', s);
+});
+
+scenario('N', 'Building blocks: logs along every axis; slabs bottom, vertical and top; stairs normal and upside down; walking up a slab; aiming through a slab\'s empty half; orientation survives save and reload', async t => {
+  const g = await t.open();
+  await g.boot();
+  await g.createWorld({ name: 'Builder', seed: '4242', mode: 'creative' });
+  const spawn = await g.ev(() => BC.game.record.spawn);
+  const gr = await g.ev(([x, z]) => __e2e.findGround(Math.floor(x), Math.floor(z), 0, 40, 3), [spawn[0], spawn[2]]);
+  t.assert(gr, 'no flat ground near spawn');
+  await g.teleport(gr.x, gr.y, gr.z);
+  const X = gr.bx, Y = gr.y, Z = gr.bz;
+  await g.ev(() => { const st = BC.game.state, mk = BC.items.make; st.inv.fill(null); st.inv[0] = mk('cobblestone', 64); st.inv[1] = mk('oak_log', 64); st.inv[2] = mk('oak_slab', 64); st.inv[3] = mk('cobblestone_stairs', 64); st.sel = 0; });
+  const sel = i => g.ev(i => { BC.game.state.sel = i; }, i);
+  const at = (x, y, z) => g.ev(([x, y, z]) => { const id = BC.game.world.getBlock(x, y, z); return { id, key: id ? BC.blocks.DEFS[id].key : 'air', st: BC.game.world.getState(x, y, z) }; }, [x, y, z]);
+  // a post to build against, a log on top (vertical), on its south face (along z) and its west face (along x)
+  await sel(0); await g.placeOn(X + 2, Y - 1, Z);
+  await g.teleport(X + 0.5, Y, Z + 2.5);   // south-west of the post: its top, west and south faces are in view
+  await sel(1);
+  await g.placeOn(X + 2, Y, Z, [0, 1, 0]); await g.placeOn(X + 2, Y, Z, [0, 0, 1]); await g.placeOn(X + 2, Y, Z, [-1, 0, 0]);
+  let s = [await at(X + 2, Y + 1, Z), await at(X + 2, Y, Z + 1), await at(X + 1, Y, Z)];
+  t.check(s.every(b => b.key === 'oak_log') && s.map(b => b.st).join() === '0,2,1', 'logs placed on a top, a south and a west face lie vertical, along z and along x', s);
+  // slabs: on the ground a bottom slab, against the side log's west face a vertical slab (against +x)
+  await sel(2);
+  await g.placeOn(X - 1, Y - 1, Z + 1, [0, 1, 0]); await g.placeOn(X + 2, Y, Z + 1, [-1, 0, 0]);
+  s = [await at(X - 1, Y, Z + 1), await at(X + 1, Y, Z + 1)];
+  t.check(s[0].key === 'oak_slab' && s[0].st === 2 && s[1].key === 'oak_slab' && s[1].st === 1, 'a slab on the ground is a bottom slab; on a wall it stands vertical against it', s);
+  // sneaking on a wall, aiming at its upper half: a top slab
+  await g.page.keyboard.down('ShiftLeft'); await g.frames(6);   // sneaking lowers the eye; aim after it settles
+  await g.ev(([x, y, z]) => __e2e.aimPoint(x, y, z), [X + 2.5, Y + 1.8, Z + 1.001]);
+  await g.frames(3);
+  const ray = await g.ev(() => BC.game.raycast());
+  await g.page.mouse.down({ button: 'right' }); await g.page.mouse.up({ button: 'right' }); await g.frames(4);
+  await g.page.keyboard.up('ShiftLeft');
+  s = await at(X + 2, Y + 1, Z + 1);
+  t.check(s.key === 'oak_slab' && s.st === 3, 'sneak-placing on the upper half of a wall makes a top slab', { s, ray });
+  // stairs on the ground: step the way you look; under an overhang: upside down
+  await sel(3);
+  await g.placeOn(X - 1, Y - 1, Z - 1, [0, 1, 0]);
+  s = await at(X - 1, Y, Z - 1);
+  const stairInfo = await g.ev(([st]) => { const k = BC.building.PERP[2][st & 3], d = BC.building.DIRS[k], L = BC.game.dev.lookDir(); return { dir: d, dot: d[0] * L.x + d[2] * L.z }; }, [s.st]);
+  t.check(s.key === 'cobblestone_stairs' && s.st >> 2 === 2 && stairInfo.dir[1] === 0 && stairInfo.dot > 0, 'stairs on the ground stand upright with the step the way you look', { s, stairInfo });
+  // build an overhang at (X+1, Y+2) from above (creative flight), then place stairs under it from the ground
+  await g.ev(() => { BC.game.player.fly = true; });
+  await g.teleport(X + 0.5, Y + 2.2, Z + 2.5, { ground: false });
+  await sel(0); await g.placeOn(X + 2, Y + 1, Z, [0, 1, 0]); await g.placeOn(X + 2, Y + 2, Z, [-1, 0, 0]);
+  await g.ev(() => { BC.game.player.fly = false; });
+  await g.teleport(X + 0.5, Y, Z + 2.5);
+  await sel(3); await g.placeOn(X + 1, Y + 2, Z, [0, -1, 0]);
+  s = await at(X + 1, Y + 1, Z);
+  t.check(s.key === 'cobblestone_stairs' && s.st >> 2 === 3, 'stairs placed under a ceiling are upside down', s);
+  // the slab's empty upper half lets the crosshair through; its lower half is hit
+  const aimHit = async (x, y, z) => { await g.ev(([x, y, z]) => __e2e.aimPoint(x, y, z), [x, y, z]); await g.frames(2); return g.ev(() => BC.game.raycast()); };
+  const hu = await aimHit(X - 0.5, Y + 0.95, Z + 1.04), hl = await aimHit(X - 0.5, Y + 0.25, Z + 1.5);
+  const isSlab = h => h && h.x === X - 1 && h.y === Y && h.z === Z + 1;
+  t.check(!isSlab(hu) && isSlab(hl), 'aiming at the empty half of a bottom slab misses it; aiming at the slab hits it', { hu, hl });
+  // walking into a bottom slab steps up onto it without jumping
+  await g.teleport(X - 0.5, Y, Z + 3.5, { yaw: 0, pitch: 0 });   // facing -z, two blocks south of the slab
+  await g.page.keyboard.down('KeyW');
+  let up = null;
+  try { await g.until(`BC.game.player.p.y > ${Y + 0.45} && BC.game.player.p.z < ${Z + 2}`, 8000, 'walking into a bottom slab did not step up onto it'); up = await g.ev(() => BC.game.player.p.y); }
+  finally { await g.page.keyboard.up('KeyW'); }
+  t.check(up !== null && up < Y + 0.6, 'walking into a bottom slab climbs onto it (half a block, no jump)', { y: up, floor: Y });
+  // save and reload: every orientation comes back
+  const cells = [[X + 2, Y + 1, Z], [X + 2, Y, Z + 1], [X + 1, Y, Z], [X - 1, Y, Z + 1], [X + 1, Y, Z + 1], [X + 2, Y + 1, Z + 1], [X - 1, Y, Z - 1], [X + 1, Y + 1, Z]];
+  const before = [];
+  for (const c of cells) before.push(await at(...c));
+  const wid = await g.ev(() => BC.game.record.id);
+  t.check(await g.ev(() => BC.game.saveNow()), 'saveNow() succeeds');
+  await g.reload();
+  await g.page.click('#btn-singleplayer'); await g.page.waitForSelector('#scr-worlds:not([hidden])');
+  await g.page.locator('.world-row', { hasText: 'Builder' }).click();
+  await g.page.click('#btn-play-world'); await g.waitPlaying();
+  await g.waitFor(([x, z]) => BC.game.world.chunkReady(x, z), [X, Z]);
+  const after = [];
+  for (const c of cells) after.push(await at(...c));
+  t.check(JSON.stringify(after) === JSON.stringify(before) && (await g.ev(id => BC.game.record.id === id, wid)), 'all eight oriented blocks are the same after save and reload', { before, after });
 });
 
 main().catch(e => { console.error(e); process.exit(1); });

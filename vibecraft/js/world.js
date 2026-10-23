@@ -20,8 +20,9 @@
       if (!Array.isArray(arr)) continue;
       const m = new Map();
       for (let i = 0; i + 1 < arr.length; i += 2) {
-        const idx = arr[i], id = arr[i + 1];
-        if (Number.isInteger(idx) && idx >= 0 && idx < CS * CS * WH && (id === 0 || BC.blocks.exists(id))) m.set(idx, id);
+        // an edit is id + state * 256 (state 0 for plain blocks, so saves from before block states read unchanged)
+        const idx = arr[i], v = arr[i + 1], id = v & 255;
+        if (Number.isInteger(idx) && idx >= 0 && idx < CS * CS * WH && Number.isInteger(v) && v >= 0 && v < 65536 && (id === 0 || BC.blocks.exists(id))) m.set(idx, v);
       }
       edits.set(k, m);
     }
@@ -41,8 +42,9 @@
     function generate(cx, cz) {
       const data = gen.generateChunk(cx, cz);
       const e = edits.get(ckey(cx, cz));
-      if (e) for (const [i, id] of e) if (i >= 0 && i < data.length) data[i] = id;
-      const ch = { cx, cz, data, light: null, dirty: true, remesh: false, opaque: null, water: null };
+      let states = null;   // block states (orientation) by cell index; most chunks have none
+      if (e) for (const [i, v] of e) if (i >= 0 && i < data.length) { data[i] = v & 255; if (v > 255) (states = states || new Map()).set(i, v >> 8); }
+      const ch = { cx, cz, data, states, light: null, dirty: true, remesh: false, opaque: null, water: null };
       chunks.set(ckey(cx, cz), ch);
       light.initChunk(ch);
       return ch;
@@ -61,6 +63,12 @@
       const ch = chunkAt(x >> 4, z >> 4);
       return ch ? ch.data[IDX(x & 15, y, z & 15)] : 0;
     }
+    // Orientation state of the block at (x, y, z); 0 for blocks without one.
+    function getState(x, y, z) {
+      if (y < 0 || y >= WH) return 0;
+      const ch = chunkAt(x >> 4, z >> 4);
+      return ch && ch.states ? ch.states.get(IDX(x & 15, y, z & 15)) || 0 : 0;
+    }
     function chunkReady(x, z) { const ch = chunkAt(Math.floor(x) >> 4, Math.floor(z) >> 4); return !!(ch && !ch.dirty); }
     function hasChunk(x, z) { return !!chunkAt(Math.floor(x) >> 4, Math.floor(z) >> 4); }
 
@@ -69,14 +77,16 @@
     const meshNow = new Set();          // chunks to re-mesh when the current edit (or batch) finishes
     const upd = []; let updHead = 0;    // queued block updates: x, y, z triples
     function queueUpdate(x, y, z) { upd.push(x, y, z); }
-    function setBlock(x, y, z, id) {
+    function setBlock(x, y, z, id, state) {
       if (y < 0 || y >= WH) return false;
       const cx = x >> 4, cz = z >> 4, k = ckey(cx, cz), ch = chunkAt(cx, cz);
       if (!ch) return false;
       const lx = x & 15, lz = z & 15, i = IDX(lx, y, lz), old = ch.data[i];
+      const st = id && state > 0 ? state & 255 : 0;
       ch.data[i] = id;
+      if (st) (ch.states = ch.states || new Map()).set(i, st); else if (ch.states) ch.states.delete(i);
       let e = edits.get(k); if (!e) { e = new Map(); edits.set(k, e); }
-      e.set(i, id);
+      e.set(i, id | (st << 8));
       if (old !== id) {
         light.update(x, y, z, old, id);
         // this block and its six neighbours react (supports, falling, placement checks)
@@ -316,7 +326,7 @@
     const getLight = (x, y, z, daylight) => light.getLight(Math.floor(x), Math.floor(y), Math.floor(z), daylight);
 
     const api = {
-      record, gen, chunks, edits, getBlock, setBlock, chunkReady, hasChunk, setRenderDistance, stream, readyRadius, unloadFar, prime, surfaceY, dispose, packEdits,
+      record, gen, chunks, edits, getBlock, getState, setBlock, chunkReady, hasChunk, setRenderDistance, stream, readyRadius, unloadFar, prime, surfaceY, dispose, packEdits,
       get rd() { return rd; },
       // world systems
       light, getSkyLight, getBlockLight, getLight, batch, tick, frame, falling, randomTickAt, randomTickSpeed: RANDOM_TICK_SPEED,

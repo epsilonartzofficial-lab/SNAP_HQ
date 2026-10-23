@@ -381,27 +381,58 @@
   };
 
   // ---------------------------------------------------------------- physics
+  // Slabs and stairs collide with their own boxes; every other solid block is a full cube.
+  const FULL_BOX = [[0, 0, 0, 1, 1, 1]];
+  const PARTIAL = new Uint8Array(256);
+  for (let i = 1; i < DEFS.length; i++) if (DEFS[i] && (DEFS[i].shape === 'slab' || DEFS[i].shape === 'stairs')) PARTIAL[i] = 1;
+  const cellBoxes = (id, x, y, z) => (PARTIAL[id] ? BC.building.boxes(id, W.getState(x, y, z)) : FULL_BOX);
+  const EPS = 1e-7;
   function collides(x, y, z, h) {
     const x0 = Math.floor(x - HW), x1 = Math.floor(x + HW - 1e-6), y0 = Math.floor(y), y1 = Math.floor(y + h - 1e-6), z0 = Math.floor(z - HW), z1 = Math.floor(z + HW - 1e-6);
-    for (let yy = y0; yy <= y1; yy++) for (let zz = z0; zz <= z1; zz++) for (let xx = x0; xx <= x1; xx++) if (SOLID[W.getBlock(xx, yy, zz)]) return true;
+    for (let yy = y0; yy <= y1; yy++) for (let zz = z0; zz <= z1; zz++) for (let xx = x0; xx <= x1; xx++) {
+      const id = W.getBlock(xx, yy, zz);
+      if (!SOLID[id]) continue;
+      if (!PARTIAL[id]) return true;
+      for (const b of cellBoxes(id, xx, yy, zz)) {
+        if (x - HW < xx + b[3] - EPS && x + HW > xx + b[0] + EPS && y < yy + b[4] - EPS && y + h > yy + b[1] + EPS && z - HW < zz + b[5] - EPS && z + HW > zz + b[2] + EPS) return true;
+      }
+    }
     return false;
+  }
+  // After a blocked horizontal move on the ground: climb onto a step up to 0.6 blocks high (slabs, stairs).
+  const STEP = 0.6;
+  function stepUp(a, d) {
+    const p = player.p, sx = p.x, sy = p.y, sz = p.z;
+    if (collides(p.x, p.y + STEP, p.z, player.height)) return false;
+    p.y += STEP;
+    if (moveAxis(a, d)) { p.x = sx; p.y = sy; p.z = sz; return false; }
+    moveAxis(1, -STEP);
+    if (p.y < sy + 0.05) { p.x = sx; p.y = sy; p.z = sz; return false; }
+    return true;
   }
   const AX = ['x', 'y', 'z'];
   function moveAxis(a, d) {
     if (!d) return false;
     const p = player.p, h = player.height; p[AX[a]] += d;
     if (player.noclip) return false;   // dev: pass through blocks
-    const x0 = Math.floor(p.x - HW), x1 = Math.floor(p.x + HW - 1e-6);
-    const y0 = Math.floor(p.y), y1 = Math.floor(p.y + h - 1e-6);
-    const z0 = Math.floor(p.z - HW), z1 = Math.floor(p.z + HW - 1e-6);
+    const lo = [p.x - HW, p.y, p.z - HW], hi = [p.x + HW, p.y + h, p.z + HW];
+    const x0 = Math.floor(lo[0]), x1 = Math.floor(hi[0] - 1e-6), y0 = Math.floor(lo[1]), y1 = Math.floor(hi[1] - 1e-6), z0 = Math.floor(lo[2]), z1 = Math.floor(hi[2] - 1e-6);
+    let hit = false, lim = d > 0 ? Infinity : -Infinity;
     for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
-      if (!SOLID[W.getBlock(x, y, z)]) continue;
-      if (a === 0) p.x = d > 0 ? x - HW - 1e-4 : x + 1 + HW + 1e-4;
-      else if (a === 1) p.y = d > 0 ? y - h - 1e-4 : y + 1;
-      else p.z = d > 0 ? z - HW - 1e-4 : z + 1 + HW + 1e-4;
-      return true;
+      const id = W.getBlock(x, y, z);
+      if (!SOLID[id]) continue;
+      for (const b of cellBoxes(id, x, y, z)) {
+        const bl = [x + b[0], y + b[1], z + b[2]], bh = [x + b[3], y + b[4], z + b[5]];
+        if (!(lo[0] < bh[0] - EPS && hi[0] > bl[0] + EPS && lo[1] < bh[1] - EPS && hi[1] > bl[1] + EPS && lo[2] < bh[2] - EPS && hi[2] > bl[2] + EPS)) continue;
+        hit = true;
+        lim = d > 0 ? Math.min(lim, bl[a]) : Math.max(lim, bh[a]);
+      }
     }
-    return false;
+    if (!hit) return false;
+    if (a === 0) p.x = d > 0 ? lim - HW - 1e-4 : lim + HW + 1e-4;
+    else if (a === 1) p.y = d > 0 ? lim - h - 1e-4 : lim;
+    else p.z = d > 0 ? lim - HW - 1e-4 : lim + HW + 1e-4;
+    return true;
   }
   // Is there a solid block under any part of the player's footprint at (x, z)?
   function groundUnder(x, z) {
@@ -481,8 +512,9 @@
         if (sx && !groundUnder(p.x + sx, p.z)) { sx = 0; v.x = 0; }
         if (sz && !groundUnder(p.x, p.z + sz)) { sz = 0; v.z = 0; }
       }
-      if (moveAxis(0, sx)) { v.x = 0; wall = true; }
-      if (moveAxis(2, sz)) { v.z = 0; wall = true; }
+      const canStep = wasOnGround && !player.fly && !player.inWater;
+      if (moveAxis(0, sx) && !(canStep && stepUp(0, sx))) { v.x = 0; wall = true; }
+      if (moveAxis(2, sz) && !(canStep && stepUp(2, sz))) { v.z = 0; wall = true; }
       if (moveAxis(1, dy / n)) { if (dy < 0) player.onGround = true; v.y = 0; }
     }
     if (wall) player.sprinting = false;
@@ -579,7 +611,11 @@
     let n = [0, 0, 0], t = 0;
     while (t <= reach) {
       const id = W.getBlock(x, y, z);
-      if (id && !LIQUID[id]) return { x, y, z, id, n, t };
+      if (id && !LIQUID[id]) {
+        if (!PARTIAL[id]) return { x, y, z, id, n, t, hy: o.y + d.y * t - y };
+        const bh = rayBoxes(o, d, x, y, z, cellBoxes(id, x, y, z));   // slabs and stairs: only their real shape
+        if (bh && bh.t <= reach) return { x, y, z, id, n: bh.n, t: bh.t, hy: o.y + d.y * bh.t - y };
+      }
       if (tx < ty && tx < tz) { x += sx; t = tx; tx += tdx; n = [-sx, 0, 0]; }
       else if (ty < tz) { y += sy; t = ty; ty += tdy; n = [0, -sy, 0]; }
       else { z += sz; t = tz; tz += tdz; n = [0, 0, -sz]; }
@@ -587,6 +623,27 @@
     return null;
   }
   G.raycast = raycast;
+  // Nearest entry of a ray into boxes (cell-local) at block (x, y, z): {t, n} or null.
+  function rayBoxes(o, d, x, y, z, list) {
+    let best = null;
+    for (const b of list) {
+      let t0 = -Infinity, t1 = Infinity, na = -1;
+      const O = [o.x, o.y, o.z], D = [d.x, d.y, d.z], lo = [x + b[0], y + b[1], z + b[2]], hi = [x + b[3], y + b[4], z + b[5]];
+      let ok = true;
+      for (let a = 0; a < 3 && ok; a++) {
+        if (Math.abs(D[a]) < 1e-12) { if (O[a] < lo[a] || O[a] > hi[a]) ok = false; continue; }
+        let ta = (lo[a] - O[a]) / D[a], tb = (hi[a] - O[a]) / D[a];
+        if (ta > tb) { const s = ta; ta = tb; tb = s; }
+        if (ta > t0) { t0 = ta; na = a; }
+        if (tb < t1) t1 = tb;
+        if (t0 > t1) ok = false;
+      }
+      if (!ok || t1 < 0 || na < 0) continue;
+      const t = Math.max(0, t0);
+      if (!best || t < best.t) { const n = [0, 0, 0]; n[na] = D[na] > 0 ? -1 : 1; best = { t, n }; }
+    }
+    return best;
+  }
 
   let attackHeld = false, attackFresh = false, useHeld = false, useFresh = false;
   let mining = null, breakCooldown = 0, useCooldown = 0, swingT = -1;
@@ -643,8 +700,11 @@
     const bd = DEFS[d.block];
     if (bd.canPlace && !bd.canPlace(W, x, y, z, h.n)) return false;
     const placeId = bd.placeAs ? bd.placeAs(W, x, y, z, h.n, player) : d.block;
-    if (SOLID[placeId] && x + 1 > player.p.x - HW && x < player.p.x + HW && y + 1 > player.p.y && y < player.p.y + player.height && z + 1 > player.p.z - HW && z < player.p.z + HW) return false;
-    W.setBlock(x, y, z, placeId);
+    // orientation: logs follow the clicked face's axis; slabs and stairs sit against it (see blocks-building.js)
+    const look = lookDir(), st = BC.building ? BC.building.placementState(placeId, h.n, [look.x, look.y, look.z], h.hy == null ? 0.5 : h.hy, player.sneaking) : 0;
+    const pb = PARTIAL[placeId] ? BC.building.boxes(placeId, st) : FULL_BOX, P = player.p;
+    if (SOLID[placeId] && pb.some(b => x + b[3] > P.x - HW && x + b[0] < P.x + HW && y + b[4] > P.y && y + b[1] < P.y + player.height && z + b[5] > P.z - HW && z + b[2] < P.z + HW)) return false;
+    W.setBlock(x, y, z, placeId, st);
     if (state.mode === 'survival') { s.count--; if (s.count <= 0) state.inv[state.sel] = null; }
     swing();
     return true;
