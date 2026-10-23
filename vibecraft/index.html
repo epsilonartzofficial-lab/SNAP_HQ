@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Vibecraft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Sans+Condensed:wght@400;600&family=Cinzel:wght@600;800&display=swap">
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="view" aria-label="Game view"></canvas>
+  <div id="water-tint" hidden></div>
+  <div id="hurt-flash"></div>
+  <div id="crosshair" hidden></div>
+  <div id="debug" hidden></div>
+  <div id="coords" hidden></div>
+
+  <div id="hud" hidden>
+    <div id="toast" class="fade"></div>
+    <div id="eat-bar" hidden><div></div></div>
+    <div id="stats">
+      <div id="left-stats"><div id="armor-bar" aria-label="Armor"></div><div id="hearts" aria-label="Health"></div></div>
+      <div id="right-stats"><div id="air" aria-label="Air"></div><div id="food" aria-label="Hunger"></div></div>
+    </div>
+    <div id="hotbar" role="toolbar" aria-label="Hotbar"></div>
+  </div>
+
+  <div id="touch" hidden>
+    <div id="joy"><div id="knob"></div></div>
+    <div id="tbtns">
+      <button class="tbtn" id="t-sneak" type="button">Sneak</button>
+      <button class="tbtn" id="t-jump" type="button">Jump</button>
+      <button class="tbtn" id="t-use" type="button">Use</button>
+      <button class="tbtn" id="t-mine" type="button">Mine</button>
+      <button class="tbtn" id="t-inv" type="button">Items</button>
+      <button class="tbtn" id="t-drop" type="button">Drop</button>
+      <button class="tbtn creative-only" id="t-fly" type="button">Fly</button>
+      <button class="tbtn creative-only" id="t-down" type="button">Down</button>
+    </div>
+  </div>
+  <button class="btn small" id="menu-btn" type="button" hidden>Menu</button>
+
+  <!-- title -->
+  <!-- main menu shell: logo and navigation on the left, content panels on the right -->
+  <div id="menu-shell" hidden>
+    <div class="menu-vignette" aria-hidden="true"></div>
+    <header class="menu-logo">
+      <h1 class="wordmark" id="wordmark">VIBE<span>CRAFT</span></h1>
+      <p class="menu-tag">Survive · Build · Explore</p>
+    </header>
+    <nav class="menu-nav" aria-label="Main menu">
+      <button type="button" class="menu-item" id="btn-singleplayer" data-for="worlds create transfer loading">Play</button>
+      <button type="button" class="menu-item" id="btn-title-settings" data-for="settings">Settings</button>
+      <button type="button" class="menu-item" id="btn-news" data-for="title">What's new</button>
+    </nav>
+    <footer class="menu-foot"><span id="title-meta"></span></footer>
+  </div>
+
+  <section id="scr-title" class="menu-panel news" aria-labelledby="news-h">
+    <p class="kicker">Development build</p>
+    <h2 id="news-h">What's new</h2>
+    <div class="news-list">
+      <article>
+        <h3>Version 0.3.3: building blocks</h3>
+        <p>Logs lie the way you place them. Slabs and stairs in 16 materials go on floors, ceilings and walls, upright, upside down or sideways. Sneak on a wall for a flat slab. Walk up them without jumping.</p>
+      </article>
+      <article>
+        <h3>Sound</h3>
+        <p>Footsteps, digging and breaking that sound like the block, creature voices, hits, splashes and more. Set the volume in Settings.</p>
+      </article>
+      <article>
+        <h3>Creatures and combat</h3>
+        <p>Pigs, cows, sheep and chickens roam the land; monsters come out at night. Fight with swords, wear armor, sleep in a bed to skip the night and respawn beside it. Cook meat in a furnace.</p>
+      </article>
+      <article>
+        <h3>Bigger, livelier worlds</h3>
+        <p>The Biomes world type has continents, rivers and 39 biomes. See up to 64 chunks away in Settings. Torches and real light make caves dark and nights blue.</p>
+      </article>
+      <article>
+        <h3>Developer toolkit</h3>
+        <p>Press <kbd>/</kbd> or <kbd>T</kbd> for commands and <kbd>F4</kbd> for the dev panel: time, teleport, find biomes and caves, give items, summon creatures. Turn it off under Settings.</p>
+      </article>
+      <article>
+        <h3>Next</h3>
+        <p>More varied biomes, then farming and breeding, bows and coloured wool.</p>
+      </article>
+    </div>
+    <button class="btn menu-cta" id="btn-news-play" type="button">Play</button>
+  </section>
+
+  <!-- world list -->
+  <section id="scr-worlds" class="slab tex-stone center wide" hidden aria-labelledby="worlds-h">
+    <h2 id="worlds-h">Select world</h2>
+    <div id="world-list" role="listbox" aria-label="Worlds"></div>
+    <div class="row">
+      <button class="btn tex-grass" id="btn-play-world" type="button">Play</button>
+      <button class="btn small tex-planks" id="btn-new-world" type="button">Create new world</button>
+    </div>
+    <div class="row">
+      <button class="btn small tex-planks" id="btn-export-world" type="button">Export</button>
+      <button class="btn small tex-planks" id="btn-import-world" type="button">Import</button>
+      <button class="btn small tex-planks warn" id="btn-delete-world" type="button">Delete</button>
+      <button class="btn small tex-planks" id="btn-worlds-back" type="button">Back</button>
+    </div>
+  </section>
+
+  <!-- create world -->
+  <section id="scr-create" class="slab tex-stone center" hidden aria-labelledby="create-h">
+    <h2 id="create-h">Create new world</h2>
+    <form id="create-form" class="form" novalidate>
+      <label class="field-col" for="cw-name">World name<input id="cw-name" maxlength="40" value="New World" autocomplete="off"></label>
+      <fieldset class="field-col"><legend>Game mode</legend>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="cw-mode" id="cw-mode-survival" value="survival" checked><span>Survival</span></label>
+          <label><input type="radio" name="cw-mode" id="cw-mode-creative" value="creative"><span>Creative</span></label>
+        </div>
+        <p class="meta" id="cw-mode-help">Gather resources, craft tools, keep yourself fed and stay alive.</p>
+      </fieldset>
+      <label class="field-col" for="cw-difficulty">Difficulty
+        <select id="cw-difficulty"><option value="0">Peaceful</option><option value="1">Easy</option><option value="2" selected>Normal</option><option value="3">Hard</option></select>
+      </label>
+      <label class="field-col" for="cw-gen">World type
+        <select id="cw-gen"><option value="2" selected>Biomes: continents, rivers, 39 biomes</option><option value="1">Classic (the original terrain)</option></select>
+      </label>
+      <label class="field-col" for="cw-seed">Seed<input id="cw-seed" placeholder="Leave blank for a random seed" autocomplete="off"></label>
+      <label class="check" for="cw-cheats"><input type="checkbox" id="cw-cheats"> Allow cheats (lets you switch game mode from the pause menu)</label>
+      <div class="row">
+        <button class="btn tex-grass" type="submit" id="btn-create">Create world</button>
+        <button class="btn small tex-planks" type="button" id="btn-create-cancel">Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- export / import -->
+  <section id="scr-transfer" class="slab tex-stone center wide" hidden aria-labelledby="transfer-h">
+    <h2 id="transfer-h">Export world</h2>
+    <p class="meta" id="transfer-help"></p>
+    <textarea id="transfer-text" rows="7" spellcheck="false" aria-label="World data"></textarea>
+    <div class="row">
+      <button class="btn small tex-grass" id="btn-transfer-go" type="button">Copy</button>
+      <label class="btn small tex-planks file-btn" id="transfer-file-label">Choose file<input type="file" id="transfer-file" accept=".json,application/json"></label>
+      <a class="btn small tex-planks" id="transfer-download" download="vibecraft-world.json" href="#">Download file</a>
+      <button class="btn small tex-planks" id="btn-transfer-back" type="button">Back</button>
+    </div>
+    <p class="hint" id="transfer-status" role="status"></p>
+  </section>
+
+  <!-- loading -->
+  <section id="scr-loading" class="slab tex-stone center" hidden><h2>Loading world…</h2><p class="meta">Generating terrain around you.</p></section>
+
+  <!-- pause -->
+  <section id="scr-pause" class="slab tex-stone center" hidden aria-labelledby="pause-h">
+    <h2 id="pause-h">Game paused</h2>
+    <p class="hint" id="pause-hint" hidden>The browser needs a second before it lets the mouse lock again. Click Back to game once more.</p>
+    <div class="col">
+      <button class="btn tex-grass" id="btn-resume" type="button">Back to game</button>
+      <button class="btn small tex-planks" id="btn-pause-settings" type="button">Settings</button>
+      <button class="btn small tex-planks" id="btn-switch-mode" type="button" hidden>Switch to Creative</button>
+      <button class="btn small tex-planks" id="btn-pause-export" type="button">Export world</button>
+      <button class="btn small tex-planks" id="btn-quit" type="button">Save and quit to title</button>
+    </div>
+    <p class="meta" id="pause-meta"></p>
+  </section>
+
+  <!-- settings -->
+  <section id="scr-settings" class="slab tex-stone center wide" hidden aria-labelledby="settings-h">
+    <h2 id="settings-h">Settings</h2>
+    <div class="settings-grid">
+      <label class="field-col" for="set-sens">Mouse sensitivity <output id="set-sens-out"></output><input type="range" id="set-sens" min="0.2" max="3" step="0.1"></label>
+      <label class="field-col" for="set-fov">Field of view <output id="set-fov-out"></output><input type="range" id="set-fov" min="50" max="110" step="1"></label>
+      <label class="field-col" for="set-vol">Sound volume <output id="set-vol-out"></output><input type="range" id="set-vol" min="0" max="100" step="1"></label>
+      <label class="field-col" for="set-rd">Render distance
+        <select id="set-rd"><option value="4">4 chunks</option><option value="6">6 chunks</option><option value="8">8 chunks</option><option value="10">10 chunks</option><option value="12">12 chunks</option><option value="16">16 chunks</option><option value="24">24 chunks (distant terrain beyond 16)</option><option value="32">32 chunks (distant terrain beyond 16)</option><option value="48">48 chunks (distant terrain beyond 16)</option><option value="64">64 chunks (distant terrain beyond 16)</option></select>
+      </label>
+      <div class="field-col checks">
+        <label class="check" for="set-invert"><input type="checkbox" id="set-invert"> Invert mouse Y</label>
+        <label class="check" for="set-motion"><input type="checkbox" id="set-motion"> Reduce camera motion</label>
+        <label class="check" for="set-tilt"><input type="checkbox" id="set-tilt"> Tilt camera when hurt</label>
+        <label class="check" for="set-coords"><input type="checkbox" id="set-coords"> Show coordinates</label>
+        <label class="check" for="set-dev"><input type="checkbox" id="set-dev"> Developer mode (console and dev panel in every world)</label>
+      </div>
+    </div>
+    <details class="controls"><summary>Controls</summary>
+      <dl class="keys">
+        <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Move · double-tap <kbd>W</kbd> to sprint</dd>
+        <dt><kbd>Space</kbd></dt><dd>Jump · swim up · double-tap to fly (Creative)</dd>
+        <dt><kbd>Shift</kbd></dt><dd>Sneak (won't walk off edges) · fly down</dd>
+        <dt><kbd>L‑click</kbd></dt><dd>Mine (hold) · attack</dd>
+        <dt><kbd>R‑click</kbd></dt><dd>Place block · use crafting table · eat (hold)</dd>
+        <dt><kbd>M‑click</kbd></dt><dd>Pick block</dd>
+        <dt><kbd>E</kbd></dt><dd>Inventory and crafting</dd>
+        <dt><kbd>Q</kbd></dt><dd>Drop one item · <kbd>Shift</kbd>+<kbd>Q</kbd> drops the stack</dd>
+        <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Hotbar · scroll wheel works too</dd>
+        <dt><kbd>F1</kbd> <kbd>F3</kbd></dt><dd>Hide HUD · debug info (on some laptops hold <kbd>Fn</kbd>)</dd>
+        <dt><kbd>/</kbd> <kbd>T</kbd> <kbd>F4</kbd></dt><dd>Command console · dev panel (Developer mode or cheats)</dd>
+        <dt>Inventory</dt><dd>Click to pick up or place · right-click to split or place one · Shift-click to move · 1–9 swaps with hotbar · Q drops</dd>
+      </dl>
+    </details>
+    <div class="row"><button class="btn tex-grass" id="btn-settings-done" type="button">Done</button></div>
+  </section>
+
+  <!-- death -->
+  <section id="scr-death" class="death" hidden aria-labelledby="death-h">
+    <h2 id="death-h">You died!</h2>
+    <p id="death-msg"></p>
+    <div class="col">
+      <button class="btn tex-grass" id="btn-respawn" type="button">Respawn</button>
+      <button class="btn small tex-planks" id="btn-death-title" type="button">Title screen</button>
+    </div>
+  </section>
+
+  <!-- inventory / crafting -->
+  <section id="scr-inventory" class="inv-screen" hidden aria-labelledby="inv-title">
+    <div class="inv-wrap">
+      <div class="inv-window tex-stone" id="inv-window">
+        <div class="inv-head"><h2 id="inv-title">Inventory</h2><button class="btn small tex-planks" id="btn-inv-close" type="button">Done</button></div>
+        <div id="inv-top"></div>
+        <div class="slot-grid main" id="inv-main"></div>
+        <div class="slot-grid hot" id="inv-hot"></div>
+      </div>
+      <aside class="inv-side tex-stone" id="inv-side" aria-labelledby="recipes-h">
+        <h3 id="recipes-h">Recipes</h3>
+        <p class="meta" id="recipes-help">Click a recipe to place its ingredients. Shift-click fills as many as you can.</p>
+        <div id="recipe-list"></div>
+      </aside>
+    </div>
+  </section>
+
+  <div id="cursor-stack" hidden></div>
+  <div id="tooltip" hidden></div>
+  <div id="banner" hidden role="alert"><span id="banner-text"></span><button type="button" id="banner-close" aria-label="Dismiss">✕</button></div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/blocks.js"></script>
+<script src="js/blocks-world.js"></script>
+<script src="js/blocks-stage2.js"></script>
+<script src="js/blocks-biomes.js"></script>
+<script src="js/blocks-combat.js"></script>
+<script src="js/blocks-building.js"></script>
+<script src="js/items.js"></script>
+<script src="js/items-stage2.js"></script>
+<script src="js/items-combat.js"></script>
+<script src="js/inventory.js"></script>
+<script src="js/crafting.js"></script>
+<script src="js/recipes-stage2.js"></script>
+<script src="js/recipes-combat.js"></script>
+<script src="js/recipes-building.js"></script>
+<script src="js/containers.js"></script>
+<script src="js/survival.js"></script>
+<script src="js/worldgen.js"></script>
+<script src="js/worldgen2.js"></script>
+<script src="js/lighting.js"></script>
+<script src="js/mobs.js"></script>
+<script src="js/save.js"></script>
+<script src="js/textures.js"></script>
+<script src="js/tex-world.js"></script>
+<script src="js/tex-stage2.js"></script>
+<script src="js/tex-biomes.js"></script>
+<script src="js/tex-combat.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/render.js"></script>
+<script src="js/mob-models.js"></script>
+<script src="js/farterrain.js"></script>
+<script src="js/world.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+<script src="js/devtools.js"></script>
+</body>
+</html>

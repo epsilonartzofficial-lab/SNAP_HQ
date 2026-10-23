@@ -10,3 +10,9 @@ one small pull request at a time.
 - Learn the GitHub pull request workflow
 - Make small, safe changes
 - Get comfortable with git branches
+
+## Vibecraft
+
+`vibecraft/` is a Minecraft-inspired survival sandbox for the browser. Open `vibecraft/index.html` to play.
+See [vibecraft/README.md](vibecraft/README.md) for how to run, test and build it, and
+[the feature checklist](vibecraft/docs/FEATURES.md) for what works today.
