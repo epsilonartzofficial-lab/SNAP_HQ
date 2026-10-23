@@ -39,13 +39,14 @@ Read this first in a new session, then `docs/ROADMAP.md` ("Update plan") and `do
 - Scenario B's intermittent failure is explained and fixed (bare-hand stone dig ran past a 20 s real-time limit
   on the slow software renderer).
 - Known gaps: two slabs don't merge into a double slab; the block highlight outline is still a full cube.
-- **Owner feedback to act on next**: textures are sometimes hard to tell apart. 0.3.7 (item art) could grow into
-  a block-and-item texture pass; consider moving it earlier.
-- **Next update: 0.3.4 Biome variety**: different tree shapes per biome (birch, spruce, jungle, acacia exist as
-  log/leaf blocks in `js/blocks-biomes.js`; tree placement is in `js/worldgen2.js`), ground plants (tall grass,
-  ferns, dead bushes, berry bushes, biome flowers), and distant-terrain colours to match.
-- After that: 0.3.5 farming and breeding, 0.3.6 bow/shears/wool, 0.3.7 item art, 0.3.8 character creation,
-  then stop for the desktop-app decision.
+- **Next update: 0.3.4 Recipe book** (owner request): the recipe list is currently always shown beside the
+  inventory and clicking a recipe moves items into the grid (`ui.js` recipe list, `game.js`/`crafting.js` fill
+  logic). Wanted: a button to open and close it (closed by default), a search box, and clicking a recipe shows a
+  translucent "ghost" of its ingredients in the crafting grid (2x2 and 3x3) without moving any items; the ghost
+  clears when the grid matches it or another recipe is picked; unavailable recipes greyed out.
+- **Then 0.3.5 Texture pass** (owner feedback: blocks and items hard to tell apart), 0.3.6 biome variety,
+  0.3.7 farming and breeding, 0.3.8 bow/shears/wool, 0.3.9 character creation, then stop for the desktop-app
+  decision (0.4.0). The table with what each update adds is in ROADMAP.md, "Update plan".
 
 ## Usage so far (API-equivalent estimates)
 

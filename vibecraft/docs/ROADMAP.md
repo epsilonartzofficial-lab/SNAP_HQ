@@ -31,17 +31,18 @@ marked "unverified".
 The stages below are long. From v0.3.1 the work ships as small updates of a few hours each. After every
 update: run the tests, push, publish a build, write a short report, and stop for the owner to playtest.
 
-| Update | Contents | Done when |
-|---|---|---|
-| 0.3.1 Fix and verify | All browser scenarios green, new creature scenario L, checklist and README current | Every automated test passes |
-| 0.3.2 Sound | Original generated sound effects for steps, mining, placing, hits, eating, animals, monsters, water; volume setting | Every common action has a sound; volume is saved |
-| 0.3.3 Building blocks (done) | Logs placed along any axis; slabs and stairs for each wood and stone, placed on top, bottom, vertical, upside down and turned every way | Every orientation places from the face you click and survives save and reload |
-| 0.3.4 Biome variety | Birch, spruce, jungle and acacia tree shapes; tall grass, ferns, dead bushes, berry bushes, biome flowers | 500 blocks of walking crosses visibly different places |
-| 0.3.5 Farming and breeding | Hoe, seeds, wheat growth stages, bread; animals follow wheat, breed, babies grow up | A farm and a herd in one session |
-| 0.3.6 Bow, shears, wool | Bow and arrows, shearing, dyes from flowers, coloured wool | Craft a bow, shoot a monster, build with coloured wool |
-| 0.3.7 Item art | Redrawn tool, food and armor icons and held items | Every item is recognisable at hotbar size |
-| 0.3.8 Character creation | Skin, hair, shirt and trousers chosen per world; first-person arm matches | Choices are saved with the world |
-| 0.3.9 Desktop app | Electron package; Ctrl to sprint; Ctrl+W can't close the game | An installable app runs existing worlds |
+| Update | Status | Adds | Done when |
+|---|---|---|---|
+| 0.3.1 Fix and verify | Done | Bed placement fix; creature test (animals, sword, armor, beds); checklist and README brought up to date | Every automated test passes |
+| 0.3.2 Sound | Done | Synthesized sounds: footsteps and digging by material, breaking, placing, hits, eating, splashes, pickups, clicks, creature voices; volume setting | Every common action has a sound; volume is saved |
+| 0.3.3 Building blocks | Done | Block states; logs along any axis; slabs and stairs in 16 materials, every orientation; step-up; clearer cobblestone | Every orientation places from the face you click and survives save and reload |
+| 0.3.4 Recipe book | Next | Recipe book opens and closes with a button (closed by default) and has a search box; clicking a recipe shows its items as faint "ghost" items in the crafting grid instead of moving items; the ghost clears when you fill it yourself or pick another recipe; recipes you can't make yet are greyed out | Search finds any recipe by name; the ghost shows in 2x2 and 3x3 grids; no items move unless you move them |
+| 0.3.5 Texture pass | Planned (moved up: owner feedback) | Redrawn block textures where blocks are confused (stones, ores, dirt types, woods) and clearer tool, food and armor icons | Every block and item is recognisable at hotbar size and in the world |
+| 0.3.6 Biome variety | Planned | Birch, spruce, jungle and acacia tree shapes; tall grass, ferns, dead bushes, berry bushes, biome flowers; matching distant-terrain colours | 500 blocks of walking crosses visibly different places |
+| 0.3.7 Farming and breeding | Planned | Hoe, seeds, wheat growth stages, bread; animals follow wheat, breed, babies grow up | A farm and a herd in one session |
+| 0.3.8 Bow, shears, wool | Planned | Bow and arrows, shearing, dyes from flowers, coloured wool | Craft a bow, shoot a monster, build with coloured wool |
+| 0.3.9 Character creation | Planned | Skin, hair, shirt and trousers chosen per world; first-person arm matches | Choices are saved with the world |
+| 0.4.0 Desktop app | Decide first | Electron/Tauri wrapper (hours) or a Godot rewrite (weeks); Ctrl to sprint; Ctrl+W can't close the game | The owner has chosen; an installable app runs existing worlds |
 
 ### 0.3.3 report
 
