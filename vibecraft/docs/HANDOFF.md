@@ -1,4 +1,4 @@
-# Handoff (22 October 2026, end of v0.3.2)
+# Handoff (23 October 2026, end of v0.3.3)
 
 Read this first in a new session, then `docs/ROADMAP.md` ("Update plan") and `docs/FEATURES.md`.
 
@@ -32,25 +32,20 @@ Read this first in a new session, then `docs/ROADMAP.md` ("Update plan") and `do
 ## Status
 
 - **0.3.1 done**: bed placement fix, e2e scenario L (animals, melee, armor, beds), docs refreshed.
-- **0.3.2 done (sound)**: `js/audio.js` synthesizes all sounds with Web Audio; hooks in `game.js` and `mobs.js`;
-  volume setting; e2e scenario M checks that sounds play and reach a real level.
-  Latest full run: unit 115/115, lighting 16/16, e2e 12/13 (B failing, see below), world e2e 5/5.
-- **Open issue: scenario B is intermittent** (passed 1 of 3 runs alone). Two failure points seen:
-  "right-click on the block did not open a screen" (crafting table) and "block 6,20,0 did not break within
-  20000 ms" (stone with a wooden pickaxe). Hypothesis, not yet confirmed: since v0.3.0 animals spawn in Classic
-  worlds, and one standing in the line of sight takes the click (`interact()` in `game.js` checks the creature
-  ray first). `mine()` in `tests/e2e.mjs` now prints creatures within 4 blocks on failure; run `node tests/e2e.mjs B`
-  and read the full failure line (it is long; do not cut it off). If confirmed, add a `creatures = false` option to
-  the e2e `createWorld` helper that sets `BC.game.mobs.config.spawning = false` and calls `BC.game.mobs.clear()`
-  for scenarios A–K, and pass `creatures: true` in L. Then rerun the whole suite.
-- **Next update: 0.3.3 Building blocks** (owner request): logs placed along any axis (currently always vertical),
-  slabs and stairs for each wood and stone, placeable top, bottom, vertical (against a wall) and upside down,
-  turned every way. Needs: block states (orientation per block id or variant ids; there is a `placeAs` hook in
-  `place()` in `game.js` and `frontAxis` support), meshing for non-cube shapes in `render.js`, collision shapes in
-  `game.js` physics and `mobs.js`, recipes, textures, save compatibility (block ids are saved, never renumber;
-  id ranges are in ROADMAP "Id ranges"), unit and e2e tests.
-- After that: 0.3.4 biome variety, 0.3.5 farming and breeding, 0.3.6 bow/shears/wool, 0.3.7 item art,
-  0.3.8 character creation, then stop for the desktop-app decision.
+- **0.3.2 done (sound)**: `js/audio.js` synthesizes all sounds; volume setting; e2e scenario M.
+- **0.3.3 done (building blocks)**: block states (see ROADMAP "0.3.3 report"), logs on any axis, slabs and stairs
+  for 16 materials in every orientation, box collision with step-up, e2e scenario N. Cobblestone redrawn on the
+  owner's request (they found blocks hard to tell apart); stone smoothed.
+- Scenario B's intermittent failure is explained and fixed (bare-hand stone dig ran past a 20 s real-time limit
+  on the slow software renderer).
+- Known gaps: two slabs don't merge into a double slab; the block highlight outline is still a full cube.
+- **Owner feedback to act on next**: textures are sometimes hard to tell apart. 0.3.7 (item art) could grow into
+  a block-and-item texture pass; consider moving it earlier.
+- **Next update: 0.3.4 Biome variety**: different tree shapes per biome (birch, spruce, jungle, acacia exist as
+  log/leaf blocks in `js/blocks-biomes.js`; tree placement is in `js/worldgen2.js`), ground plants (tall grass,
+  ferns, dead bushes, berry bushes, biome flowers), and distant-terrain colours to match.
+- After that: 0.3.5 farming and breeding, 0.3.6 bow/shears/wool, 0.3.7 item art, 0.3.8 character creation,
+  then stop for the desktop-app decision.
 
 ## Usage so far (API-equivalent estimates)
 
@@ -58,8 +53,11 @@ Read this first in a new session, then `docs/ROADMAP.md` ("Update plan") and `do
 |---|---|---|---|---|---|
 | 0.3.1 | 31 | 16.9k | 8.24M | 27.9k | about $2.20 |
 | 0.3.2 (with this handoff) | 38 | 35.0k | 11.95M | 93.1k | about $3.85 |
+| 0.3.3 + phone check + cobblestone | 58 | 66.8k | 24.3M | 547k | about $10.60 |
 
-Cache reads are about 75 % of the cost: each request re-read a conversation of about 300k tokens. A fresh
+Cache reads were most of the cost: each request re-reads the whole conversation (about 300k tokens at 0.3.1,
+about 500k by the end of 0.3.3). In 0.3.3 the cache also expired during an overnight pause, so the whole
+conversation was written to the cache again (the 547k of cache writes, about $4.40). A fresh
 session with this handoff starts much smaller, so the same work should cost noticeably less per update.
 Effort was low to medium; thinking was about 25 % of output. That looked sufficient for these updates, and the
 bugs that slipped through were caught by tests, not by more thinking.
